@@ -1,0 +1,1268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rainfall & Water Level Dashboard</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #1a1a1a; color: #e5e5e5; overflow: hidden; }
+        
+        /* --- Map & Layout --- */
+        #map { position: absolute; top: 0; left: 0; right: 0; bottom: 180px; z-index: 1; background: #222; }
+
+        /* --- Custom Slider Styling --- */
+        .range-container { position: relative; width: 100%; height: 20px; display: flex; align-items: center; }
+        .range-track { position: absolute; top: 50%; transform: translateY(-50%); left: 0; width: 100%; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; z-index: 1; }
+        .range-fill { position: absolute; top: 50%; transform: translateY(-50%); height: 4px; background: #3b82f6; z-index: 2; pointer-events: none; }
+        
+        input[type=range] { -webkit-appearance: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; pointer-events: none; z-index: 5; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; pointer-events: auto; height: 18px; width: 18px; border-radius: 50%; cursor: pointer; margin-top: 1px; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        input[type=range]:focus { outline: none; }
+        
+        #slider-start::-webkit-slider-thumb { background: #9ca3af; border: 2px solid #fff; z-index: 4; }
+        #slider-end::-webkit-slider-thumb { background: #fbbf24; border: 2px solid #fff; z-index: 6; width: 20px; height: 20px; }
+
+        /* --- UI Components --- */
+        .glass-panel { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        
+        /* --- Leaflet Customization --- */
+        .leaflet-bar a { background-color: #333; color: #fff; border-bottom: 1px solid #444; }
+        .leaflet-bar a:hover { background-color: #444; }
+        .leaflet-container { background: #111; }
+        .leaflet-popup-content-wrapper { background: rgba(30, 30, 30, 0.95); color: white; border-radius: 8px; backdrop-filter: blur(4px); }
+        .leaflet-popup-tip { background: rgba(30, 30, 30, 0.95); }
+        
+        .custom-tooltip { background: rgba(0,0,0,0.9); border: 1px solid #444; color: white; font-size: 12px; border-radius: 4px; padding: 6px 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .leaflet-tooltip-top:before { border-top-color: rgba(0,0,0,0.9); }
+
+        /* --- D3 Chart Styling --- */
+        #chart-container { position: relative; height: 60px; width: 100%; margin-bottom: 0px; }
+        .chart-area { fill: url(#chartGradient); opacity: 0.6; stroke: #60a5fa; stroke-width: 1.5px; }
+        .chart-selection-rect { fill: #3b82f6; opacity: 0.2; }
+        .chart-cursor { stroke: #fbbf24; stroke-width: 2px; stroke-dasharray: 4 2; opacity: 0.8; }
+        
+        .popup-chart path { fill: #60a5fa; fill-opacity: 0.3; stroke: #60a5fa; stroke-width: 2px; }
+        .popup-chart .domain, .popup-chart .tick line { stroke: #555; }
+        .popup-chart .tick text { fill: #999; font-size: 9px; }
+        .popup-cursor-line { stroke: #fbbf24; stroke-width: 1.5px; stroke-dasharray: 3 2; opacity: 1; transition: x1 0.05s linear, x2 0.05s linear; }
+        
+        /* --- Marker Animation --- */
+        .station-marker { transition: all 0.3s ease; box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+    </style>
+</head>
+<body>
+
+    <!-- Map Layer -->
+    <div id="map"></div>
+
+    <!-- Layer Controls (Top Left) -->
+    <div class="absolute top-4 left-4 z-50 flex flex-col gap-2">
+        <!-- Layer Toggle -->
+        <button id="layer-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
+            <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/></svg>
+            Layers
+        </button>
+        
+        <!-- Legend Toggle -->
+        <button id="legend-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
+            <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 6h.01M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 00-2 2z"/></svg>
+            Legend
+        </button>
+
+        <!-- Filter Toggle -->
+        <button id="filter-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
+            <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M4 9h16M6 14h12M9 19h6"/></svg>
+            Filters
+        </button>
+        <div class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden" id="filter-panel">
+            <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Filters</div>
+            <div class="flex flex-col gap-2 text-sm">
+                <label class="text-xs text-gray-300">Provinces (rain/stations/lakes)</label>
+                <div id="filter-province-list" class="max-h-32 overflow-y-auto space-y-1"></div>
+            </div>
+            <div class="flex justify-end gap-2 mt-3">
+                <button id="filter-reset" class="px-3 py-1 rounded bg-gray-700 text-white text-xs font-semibold hover:bg-gray-600 transition">Reset</button>
+                <button id="filter-apply" class="px-4 py-1 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition">Apply</button>
+            </div>
+        </div>
+
+        <!-- Legend Panel (moved) -->
+        <div id="legend-panel" class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden">
+            <!-- Rainfall Legend -->
+            <div id="legend-rain" class="hidden">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-400">Rainfall</div>
+                    <span id="legend-mode-label" class="text-[11px] text-emerald-300 font-semibold">Hourly</span>
+                </div>
+                <div class="relative h-2 rounded-full mb-1" id="legend-gradient">
+                    <div id="legend-hover-marker" class="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-white ring-2 ring-black opacity-0 transition-opacity"></div>
+                </div>
+                <div class="flex justify-between text-[11px] text-gray-400">
+                    <span id="legend-min-val">Low</span><span id="legend-max-val">High</span>
+                </div>
+            </div>
+            <!-- Lake Legend -->
+            <div id="legend-lakes" class="mt-3 hidden"><div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Lakes</div><div class="flex items-center gap-2 text-xs"><div class="w-3 h-3 border border-sky-300"></div><span>Fill Percentage</span></div></div>
+            <!-- Station Legend -->
+            <div id="legend-stations" class="mt-3 hidden"><div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">River Stations</div><div class="flex items-center gap-2 text-xs"><div class="w-3 h-3 rounded-full border border-amber-400"></div><span>Warning Level</span></div></div>
+        </div>
+
+
+        <!-- Layers Panel Content -->
+        <div id="layer-panel" class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden">
+            <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Overlays</div>
+            <div class="space-y-2 text-sm">
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input id="toggle-lakes" type="checkbox" class="accent-blue-500" checked>
+                    <span class="text-gray-200">Lakes</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input id="toggle-stations" type="checkbox" class="accent-blue-500" checked>
+                    <span class="text-gray-200">Stations</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer select-none">
+                    <input id="toggle-rivers" type="checkbox" class="accent-blue-500" checked>
+                    <span class="text-gray-200">River System</span>
+                </label>
+            </div>
+            <div class="mt-3 border-t border-gray-700 pt-2">
+                <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Rain Overlay</div>
+                <div class="flex flex-col gap-1 text-sm">
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="radio" name="rain-mode" value="none" class="accent-blue-500">
+                        <span class="text-gray-200">Off</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="radio" name="rain-mode" value="daily" class="accent-blue-500" checked>
+                        <span class="text-gray-200">Hourly</span>
+                    </label>
+                    <label class="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="radio" name="rain-mode" value="accumulated" class="accent-blue-500">
+                        <span class="text-gray-200">Accumulated</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Story Creator Button -->
+    <div class="absolute top-4 right-4 z-50 flex flex-col gap-2">
+        <button id="story-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
+            <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m-6-6h12"/></svg>
+            Create Story
+        </button>
+    </div>
+
+    <!-- Story Modal -->
+    <div id="story-modal" class="fixed inset-0 z-[999] hidden items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div class="glass-panel w-[92%] max-w-xl rounded-2xl p-6 relative">
+            <button id="story-close" class="absolute top-3 right-3 text-gray-400 hover:text-white">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+            <h2 class="text-lg font-bold text-white mb-4">New Scrollytelling Scene</h2>
+            <form id="story-form" class="space-y-4" autocomplete="off">
+                <div id="story-form-wrapper" class="space-y-4">
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs text-gray-400 uppercase tracking-wider">Title</label>
+                        <input id="story-title" type="text" required class="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Flood focus over Đà Nẵng">
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs text-gray-400 uppercase tracking-wider">Summary / Caption</label>
+                        <textarea id="story-desc" rows="2" class="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Narrate what the viewer should notice."></textarea>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs text-gray-400 uppercase tracking-wider">From</label>
+                            <select id="story-start" class="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs text-gray-400 uppercase tracking-wider">To</label>
+                            <select id="story-end" class="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"></select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs text-gray-400 uppercase tracking-wider">Rain</label>
+                            <select id="story-rain" class="w-full px-3 py-2 rounded bg-gray-800 border border-gray-700 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="daily">Hourly</option>
+                                <option value="accumulated">Accumulated</option>
+                                <option value="none">Off</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="text-xs text-gray-400 uppercase tracking-wider">Layers</label>
+                            <div class="grid grid-cols-2 gap-2 text-sm">
+                                <label class="flex items-center gap-2 text-white"><input id="story-layers-lakes" type="checkbox" class="accent-blue-500" checked>Lakes</label>
+                                <label class="flex items-center gap-2 text-white"><input id="story-layers-stations" type="checkbox" class="accent-blue-500" checked>Stations</label>
+                                <label class="flex items-center gap-2 text-white"><input id="story-layers-rivers" type="checkbox" class="accent-blue-500" checked>Rivers</label>
+                                <label class="flex items-center gap-2 text-white col-span-2"><input id="story-layers-rain" type="checkbox" class="accent-blue-500" checked>Rain</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-800/60 border border-gray-700 rounded-lg p-3 text-xs text-gray-300">
+                        <div>
+                            <div class="font-semibold text-white">Use current view</div>
+                            <div class="text-gray-400">Prefill with the date range and layer visibility you are seeing.</div>
+                        </div>
+                        <button id="story-use-current" type="button" class="px-3 py-2 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition">Copy</button>
+                    </div>
+                    <div class="flex justify-end gap-3 pt-2">
+                        <button type="button" id="story-cancel" class="px-3 py-2 rounded bg-gray-700 text-white text-xs font-semibold hover:bg-gray-600 transition">Cancel</button>
+                        <button type="submit" class="px-4 py-2 rounded bg-amber-500 text-black text-xs font-semibold hover:bg-amber-400 transition">Save Scene</button>
+                    </div>
+                </div>
+            </form>
+            <div class="mt-6 border-t border-gray-700 pt-3">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="text-[10px] uppercase tracking-wider text-gray-400">Saved Scenes</div>
+                    <span class="text-[11px] text-gray-500" id="story-count">0</span>
+                </div>
+                <div class="flex items-center gap-2 mb-2 flex-wrap">
+                    <button id="story-play-all" type="button" class="px-3 py-2 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition">Play All</button>
+                    <select id="story-play-delay" class="px-2 py-2 rounded bg-gray-800 border border-gray-700 text-[11px] text-white focus:outline-none">
+                        <option value="2000">2s</option>
+                        <option value="4000" selected>4s</option>
+                        <option value="6000">6s</option>
+                    </select>
+                    <button id="story-export" type="button" class="px-3 py-2 rounded bg-gray-800 text-white text-xs font-semibold border border-gray-700 hover:bg-gray-700 transition">Export JSON</button>
+                    <label for="story-import-input" class="px-3 py-2 rounded bg-gray-800 text-white text-xs font-semibold border border-gray-700 hover:bg-gray-700 transition cursor-pointer">Import JSON</label>
+                    <input id="story-import-input" type="file" accept="application/json" class="hidden">
+                </div>
+                <div id="story-empty" class="text-sm text-gray-500">No scenes yet. Save one above.</div>
+                <div id="story-list" class="flex flex-col gap-2 mt-1"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Timeline Bar -->
+    <div class="absolute bottom-0 left-0 right-0 h-[180px] bg-gradient-to-t from-black via-[#1a1a1a] to-transparent z-50 flex flex-col justify-end pb-6 px-6 pointer-events-none">
+        <div class="glass-panel w-full rounded-xl p-4 pointer-events-auto flex flex-col gap-1">
+            
+            <!-- Play/Date Row -->
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-3">
+                    <button id="timeline-play-pause" class="glass-panel -ml-1 w-10 h-10 rounded-lg flex items-center justify-center text-blue-400 hover:bg-white/10 transition">
+                        <svg id="play-icon" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"></path></svg>
+                        <svg id="pause-icon" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 20 20"><path d="M5.75 4.5a.75.75 0 00-.75.75v10.5a.75.75 0 001.5 0V5.25a.75.75 0 00-.75-.75zm9 0a.75.75 0 00-.75.75v10.5a.75.75 0 001.5 0V5.25a.75.75 0 00-.75-.75z"></path></svg>
+                    </button>
+                    <div>
+                        <div class="text-xs text-gray-400 uppercase tracking-wider font-semibold">Current Time</div>
+                        <div class="flex items-baseline gap-2">
+                            <div id="display-date" class="text-2xl font-bold text-white font-mono">...</div>
+                            <div id="start-date-display" class="text-sm text-gray-400 font-mono hidden"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart Container -->
+            <div id="chart-container">
+                <svg id="timeline-chart" width="100%" height="100%"></svg>
+            </div>
+
+            <!-- Dual Slider Container -->
+            <div class="range-container">
+                <div class="range-track"></div>
+                <div class="range-fill" id="range-fill"></div>
+                <input type="range" id="slider-start" min="0" max="100" value="0" step="1">
+                <input type="range" id="slider-end" min="0" max="100" value="0" step="1">
+            </div>
+            
+            <!-- Ticks -->
+            <div class="flex justify-between text-[10px] text-gray-500 font-mono px-1 mt-1" id="timeline-ticks"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <script>
+        // =============================================================================
+        // 1. CONFIGURATION & CONSTANTS
+        // =============================================================================
+        const CONFIG = {
+            startView: [11.5, 108.5], 
+            zoomLevel: 9,
+            colors: { low: '#06b6d4', mid: '#22c55e', high: '#ef4444', extreme: '#7f1d1d' }
+        };
+
+        const STORY_EDIT_MODE = true; // Set to false for production view-only mode
+        // Filter Range Definition
+        const FILTER_RANGE = {
+            start: new Date("2025-11-15T00:00:00"),
+            end: new Date("2025-11-20T20:00:00")
+        };
+        
+        const MARKER_MAX_RATIO = 150;
+        const MARKER_MAX_WARNING = 4;
+        const CIRCLE_MARKER_RADIUS = 4;
+
+        const ALLOWED_PROVINCES = [
+            "TP Huế", "TP Đà Nẵng", "tỉnh Quảng Nam", "tỉnh Quảng Ngãi",
+            "tỉnh Bình Định", "tỉnh Phú Yên", "tỉnh Khánh Hòa", "tỉnh Đắk Lắk", "tỉnh Gia Lai"
+        ];
+
+        // =============================================================================
+        // 2. STATE MANAGEMENT
+        // =============================================================================
+        let state = {
+            // GIS Data
+            geoData: null,
+            riverData: null,
+            stationMeta: {},
+            
+            dates: [],
+            wardIds: [], 
+            wardNames: {}, 
+            
+            // Maps for fast lookup
+            dataMap: {}, 
+            accumulatedMap: {}, 
+            waterLevelMap: {}, // { date: { station_id: record } }
+            
+            wardTimeSeries: {}, 
+            timelineStats: [], 
+            
+            stories: [],
+            
+            // Time Indices
+            startIndex: 0,
+            endIndex: 0,
+            visibleStartIndex: 0,
+            
+            isPlaying: false,
+            mode: 'daily', 
+            maxDaily: 60,
+            maxTotal: 300
+        };
+
+        let layerVisibility = { rain: true, river: true, stations: true, lakes: true };
+        let filters = { provinces: new Set() };
+        let rainThresholds = { p50: 0, p90: 0, p99: 0 };
+        
+        // Runtime Variables
+        let pendingUpdate = null;
+        let storyAutoplayTimer = null;
+        let storyAutoplayIndex = 0;
+        let timelinePlayTimer = null;
+        let storyRangeTimer = null;
+        let storyAutoplayActive = false;
+        let geoLayer, riverLayer, stationLayer, lakeLayer;
+        let chartXScale, chartYScale;
+        const lakeRatioLogs = new Set();
+
+        // =============================================================================
+        // 3. DOM ELEMENTS CACHE
+        // =============================================================================
+        const DOM = {
+            sliderStart: document.getElementById('slider-start'),
+            sliderEnd: document.getElementById('slider-end'),
+            rangeFill: document.getElementById('range-fill'),
+            storyModal: document.getElementById('story-modal'),
+            storyForm: document.getElementById('story-form'),
+            storyStart: document.getElementById('story-start'),
+            storyEnd: document.getElementById('story-end'),
+            storyRain: document.getElementById('story-rain'),
+            storyLakes: document.getElementById('story-layers-lakes'),
+            storyStations: document.getElementById('story-layers-stations'),
+            storyRivers: document.getElementById('story-layers-rivers'),
+            storyRainLayer: document.getElementById('story-layers-rain'),
+            storyTitle: document.getElementById('story-title'),
+            storyDesc: document.getElementById('story-desc'),
+            storyUseCurrent: document.getElementById('story-use-current'),
+            storyCancel: document.getElementById('story-cancel'),
+            storyClose: document.getElementById('story-close'),
+            storyToggleBtn: document.getElementById('story-btn'),
+            storyList: document.getElementById('story-list'),
+            storyEmpty: document.getElementById('story-empty'),
+            storyCount: document.getElementById('story-count'),
+            storyPlayAll: document.getElementById('story-play-all'),
+            storyPlayDelay: document.getElementById('story-play-delay'),
+            storyExportBtn: document.getElementById('story-export'),
+            storyImportInput: document.getElementById('story-import-input'),
+            chkLakes: document.getElementById('toggle-lakes'),
+            chkStations: document.getElementById('toggle-stations'),
+            chkRivers: document.getElementById('toggle-rivers'),
+            layerPanel: document.getElementById('layer-panel'),
+            layerToggleBtn: document.getElementById('layer-toggle-btn'),
+            legendToggleBtn: document.getElementById('legend-toggle-btn'),
+            legendPanel: document.getElementById('legend-panel'),
+            legendModeLabel: document.getElementById('legend-mode-label'),
+            legendGradient: document.getElementById('legend-gradient'),
+            legendLakeGradient: document.getElementById('legend-lake-gradient'),
+            legendRain: document.getElementById('legend-rain'),
+            legendLakes: document.getElementById('legend-lakes'),
+            legendStations: document.getElementById('legend-stations'),
+            legendHoverMarker: document.getElementById('legend-hover-marker'),
+            filterToggleBtn: document.getElementById('filter-toggle-btn'),
+            filterPanel: document.getElementById('filter-panel'),
+            filterProvinceList: document.getElementById('filter-province-list'),
+            filterApplyBtn: document.getElementById('filter-apply'),
+            filterResetBtn: document.getElementById('filter-reset'),
+            rainRadios: Array.from(document.querySelectorAll('input[name="rain-mode"]')),
+            timelinePlayPause: document.getElementById('timeline-play-pause'),
+            playIcon: document.getElementById('play-icon'),
+            pauseIcon: document.getElementById('pause-icon'),
+        };
+
+        const map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CONFIG.startView, CONFIG.zoomLevel);
+        L.control.zoom({ position: 'topright' }).addTo(map);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '&copy; CARTO', subdomains: 'abcd', maxZoom: 20 }).addTo(map);
+
+        map.createPane('rainPane'); map.getPane('rainPane').style.zIndex = 400;
+        map.createPane('riverPane'); map.getPane('riverPane').style.zIndex = 500;
+        map.createPane('stationPane'); map.getPane('stationPane').style.zIndex = 650;
+
+        // =============================================================================
+        // 4. UTILITY FUNCTIONS
+        // =============================================================================
+        const normalizeProvince = (name) => {
+            if (!name) return null;
+            return name.trim().toLowerCase().replace(/^tỉnh\s+/, '').replace(/^tp\.?\s*/, '').replace(/^thành phố\s+/, '');
+        };
+        const allowedProvinceSet = new Set(ALLOWED_PROVINCES.map(normalizeProvince));
+        const isAllowedProvince = (name) => {
+            const normalized = normalizeProvince(name);
+            return normalized ? allowedProvinceSet.has(normalized) : false;
+        };
+        const provinceFromWardId = (wardId) => {
+            if (!wardId || typeof wardId !== "string") return null;
+            const chunk = wardId.split("|")[0];
+            return chunk ? normalizeProvince(chunk) : null;
+        };
+        function inferStationType(typeStr) {
+            if (!typeStr) return 'river';
+            const normalized = typeStr.toLowerCase();
+            if (normalized.includes('lake') || normalized.includes('hồ') || normalized.includes('ho')) return 'lake';
+            return 'river';
+        }
+        function normalizeTrendLabel(text) {
+            if (!text) return '';
+            return text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').trim();
+        }
+        function formatDateTick(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return `${d.getDate()}/${d.getMonth() + 1}`;
+            } catch(e) { return dateStr; }
+        }
+        function formatDisplayDate(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return `${d.getHours()}h, ${d.getDate()}/${d.getMonth() + 1}`;
+            } catch(e) { return dateStr; }
+        }
+        function formatFullDate(dateStr) {
+            try {
+                const d = new Date(dateStr);
+                if (isNaN(d.getTime())) return dateStr;
+                return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+            } catch(e) { return dateStr; }
+        }
+        function normalizeToHourKey(value) {
+            if (!value) return null;
+            const match = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):/);
+            if (!match) return null;
+            const [, datePart, hourPart] = match;
+            return `${datePart} ${hourPart.padStart(2, '0')}:00`;
+        }
+        function getMarkerColor(type, record) {
+            const intensity = type === 'lake' 
+                ? Math.min(1, Math.max(0, (record.ratio || 0) / MARKER_MAX_RATIO))
+                : Math.min(1, Math.max(0, (record.warningValue || 0) / MARKER_MAX_WARNING));
+            return d3.interpolateTurbo(intensity);
+        }
+        function buildTriangle(lat, lon, half) {
+            return [[lat + half, lon], [lat - half, lon - half], [lat - half, lon + half]];
+        }
+        function computeLakeHalfSize(capacity) {
+            const cap = Number.isFinite(capacity) ? capacity : 100000;
+            const base = Math.sqrt(Math.max(cap, 1));
+            return Math.min(0.02, Math.max(0.001, 0.0004 + base * 0.000003));
+        }
+        function getLakeMinHalfSize(lat, lon) {
+            if (!map || typeof map.latLngToLayerPoint !== 'function') return 0.001;
+            // Fix: Check for invalid coordinates before projection
+            if (!Number.isFinite(lat) || !Number.isFinite(lon)) return 0.001;
+            const centerPoint = map.latLngToLayerPoint([lat, lon]);
+            const rightPoint = map.layerPointToLatLng(L.point(centerPoint.x + CIRCLE_MARKER_RADIUS, centerPoint.y));
+            const bottomPoint = map.layerPointToLatLng(L.point(centerPoint.x, centerPoint.y + CIRCLE_MARKER_RADIUS));
+            return Math.max(Math.abs(bottomPoint.lat - lat), Math.abs(rightPoint.lng - lon), 0.001);
+        }
+        const requestViewUpdate = () => {
+            if (pendingUpdate !== null) return;
+            pendingUpdate = requestAnimationFrame(() => { pendingUpdate = null; updateView(); });
+        };
+
+        // =============================================================================
+        // 5. DATA LOADING & PROCESSING
+        // =============================================================================
+        async function initData() {
+            try {
+                // Use relative paths for local preview. For production, uncomment and adjust BASE_URL.
+                // const BASE_URL = "https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main";
+                
+                const [geoRes, riverRes, rainRes, waterRes] = await Promise.allSettled([
+                    d3.json("./geo/WardBoundary.geojson"),
+                    d3.json("./geo/river.json"),
+                    d3.csv("./data/rain.csv"), 
+                    d3.csv("./data/river.csv")
+                ]);
+
+                if (geoRes.status === 'fulfilled') {
+                    console.log("Core Data Loaded.");
+                    processData(
+                        geoRes.value,
+                        riverRes.status === 'fulfilled' ? riverRes.value : null,
+                        rainRes.status === 'fulfilled' ? rainRes.value : [],
+                        waterRes.status === 'fulfilled' ? waterRes.value : []
+                    );
+                } else { 
+                    throw new Error("GeoJSON missing"); 
+                }
+            } catch (e) {
+                console.error("Load Error:", e);
+            }
+        }
+
+        function processData(geo, river, rainCsv, waterCsv) {
+            // 1. Filter GeoJSON
+            const filteredFeatures = geo.features.filter(f => isAllowedProvince(f.properties["Tỉnh thành mới"]));
+            state.geoData = { ...geo, features: filteredFeatures };
+            state.riverData = river;
+
+            // 2. Helpers for CSV Headers
+            const cleanKey = key => (typeof key === "string" ? key.replace(/^\uFEFF/, '') : key);
+            const pickField = (obj, candidates) => {
+                if (!obj) return null;
+                const keys = Object.keys(obj);
+                for (const candidate of candidates) {
+                    const match = keys.find(key => cleanKey(key) === candidate);
+                    if (match) return match;
+                }
+                return null;
+            };
+            
+            // Detect Column Names
+            const sampleRain = rainCsv[0] || {}, sampleWater = waterCsv[0] || {};
+            const keys = {
+                rainDate: pickField(sampleRain, ["timestamp", "time", "date", "Thời gian", "Thời gian (UTC)"]),
+                rainWard: pickField(sampleRain, ["ward_id", "commune_id_2cap", "wardid"]),
+                rainVal: pickField(sampleRain, ["rain_mm_idw", "rain", "value"]),
+                waterDate: pickField(sampleWater, ["timestamp", "Thời gian (UTC)", "time", "date"]),
+                waterId: pickField(sampleWater, ["station_id", "Mã trạm/LakeCode", "stationid"]),
+                waterVal: pickField(sampleWater, ["val", "value", "water_level", "Mực nước (m)"]),
+                waterProv: pickField(sampleWater, ["Tên tỉnh", "province", "provinceName"]),
+                waterType: pickField(sampleWater, ["type"]),
+                waterRatio: pickField(sampleWater, ["Tỷ lệ dung tích (%)", "Ty le dung tich (%)"]),
+                waterCap: pickField(sampleWater, ["Dung tích TK (m3)", "Dung tích (m3)"]),
+                waterTrend: pickField(sampleWater, ["Cảnh báo/Xu thế", "Canh bao/Xu the"]),
+                waterWarnVal: pickField(sampleWater, ["Cảnh báo value (0-4)", "Canh bao value (0-4)"]),
+                qIn: pickField(sampleWater, ["Q đến (m3/s)", "Q den (m3/s)"]),
+                qOut: pickField(sampleWater, ["Q xả (m3/s)", "Q xa (m3/s)"]),
+                bd2: pickField(sampleWater, ["BĐ2 (m)", "BD2 (m)"]),
+                bd3: pickField(sampleWater, ["BĐ3 (m)", "BD3 (m)"]),
+                historic: pickField(sampleWater, ["Mực nước lịch sử (m)", "Muc nuoc lich su (m)"])
+            };
+
+            // 3. Setup Wards
+            state.wardIds = [];
+            filteredFeatures.forEach(f => {
+                let id = f.properties["ward_id"];
+                const name = f.properties["Phường xã mới"];
+                const province = f.properties["Tỉnh thành mới"];
+                if (!id) id = (province && name) ? `${province} | ${name}` : name;
+                f.properties._uniqueId = id; 
+                if (!state.wardIds.includes(id)) state.wardIds.push(id);
+                state.wardNames[id] = name;
+            });
+
+            // 4. Setup Dates with Filtering
+            const dateSet = new Set();
+            const addDate = (d, key, prov) => {
+                const normalized = normalizeToHourKey(d[key]);
+                if (normalized && (!prov || isAllowedProvince(prov))) dateSet.add(normalized);
+            };
+            rainCsv.forEach(d => addDate(d, keys.rainDate, provinceFromWardId(d[keys.rainWard])));
+            waterCsv.forEach(d => addDate(d, keys.waterDate, d[keys.waterProv]));
+            
+            let allDates = Array.from(dateSet).sort((a,b) => new Date(a) - new Date(b));
+            
+            // *** FILTER DATE RANGE HERE ***
+            state.dates = allDates.filter(d => {
+                const dateObj = new Date(d);
+                return dateObj >= FILTER_RANGE.start && dateObj <= FILTER_RANGE.end;
+            });
+
+            // Reset visible start index since strict filtering makes the whole array visible
+            state.visibleStartIndex = 0;
+
+            // 5. Init Data Structures
+            state.dataMap = {}; state.accumulatedMap = {}; state.waterLevelMap = {};
+            let runningTotals = {};
+            state.wardIds.forEach(id => { runningTotals[id] = 0; state.wardTimeSeries[id] = []; });
+
+            const rainByDate = d3.group(rainCsv, d => normalizeToHourKey(d[keys.rainDate]));
+            const waterByDate = d3.group(waterCsv, d => normalizeToHourKey(d[keys.waterDate]));
+            const lastWaterValues = {};
+
+            // 6. Time Loop Processing
+            state.dates.forEach((date, t) => {
+                state.dataMap[t] = {}; state.accumulatedMap[t] = {}; state.waterLevelMap[t] = {}; 
+
+                // Rain
+                const rainRows = rainByDate.get(date) || [];
+                let dailySum = 0, dailyCount = 0, dailyMax = 0;
+                const rainLookup = new Map();
+                
+                rainRows.forEach(r => {
+                    const rid = keys.rainWard ? r[keys.rainWard] : r["ward_id"];
+                    if (!rid) return;
+                    const prov = provinceFromWardId(rid);
+                    if (prov && !isAllowedProvince(prov)) return;
+                    rainLookup.set(rid, parseFloat(r[keys.rainVal] || 0));
+                });
+
+                state.wardIds.forEach(id => {
+                    let val = rainLookup.has(id) ? rainLookup.get(id) : 0; 
+                    if (isNaN(val)) val = 0;
+                    state.wardTimeSeries[id].push({ date: date, val: val });
+                    
+                    if (rainLookup.has(id)) {
+                        state.dataMap[t][id] = val;
+                        runningTotals[id] += val;
+                        dailySum += val; dailyCount++;
+                        if(val > dailyMax) dailyMax = val;
+                    }
+                    state.accumulatedMap[t][id] = runningTotals[id];
+                });
+                state.timelineStats.push({ date: date, avg: dailyCount > 0 ? dailySum / dailyCount : 0, max: dailyMax });
+
+                // Water
+                const waterRows = waterByDate.get(date) || [];
+                waterRows.forEach(row => {
+                    const sid = keys.waterId ? row[keys.waterId] : row.station_id;
+                    if (!sid) return;
+                    const prov = keys.waterProv ? row[keys.waterProv] : null;
+                    if (prov && !isAllowedProvince(prov)) return;
+
+                    // Metadata Extraction (First time only)
+                    if (!state.stationMeta[sid]) {
+                        state.stationMeta[sid] = {
+                            station_id: sid,
+                            lat: parseFloat(row.lat || row.latitude || row.y),
+                            lon: parseFloat(row.lon || row.lng || row.x),
+                            name: row["Trạm/Hồ"] || row.station_name || sid,
+                            type: inferStationType(keys.waterType ? row[keys.waterType] : row.type),
+                            provinceRaw: prov,
+                            province: prov ? normalizeProvince(prov) : null
+                        };
+                    }
+
+                    const record = {
+                        value: parseFloat(row[keys.waterVal] || 0),
+                        ratio: keys.waterRatio ? parseFloat(row[keys.waterRatio]) : null,
+                        capacity: keys.waterCap ? parseFloat(row[keys.waterCap]) : null,
+                        warningValue: keys.waterWarnVal ? parseFloat(row[keys.waterWarnVal]) : null,
+                        warningTrend: keys.waterTrend ? row[keys.waterTrend] : null,
+                        qIn: keys.qIn ? parseFloat(row[keys.qIn]) : null,
+                        qOut: keys.qOut ? parseFloat(row[keys.qOut]) : null,
+                        bd2: keys.bd2 ? parseFloat(row[keys.bd2]) : null,
+                        bd3: keys.bd3 ? parseFloat(row[keys.bd3]) : null,
+                        historic: keys.historic ? parseFloat(row[keys.historic]) : null
+                    };
+                    
+                    lastWaterValues[sid] = record;
+                    state.waterLevelMap[t][sid] = record;
+                });
+                
+                // Carry forward last known water values if missing
+                Object.entries(lastWaterValues).forEach(([sid, prev]) => {
+                    if (!state.waterLevelMap[t][sid]) state.waterLevelMap[t][sid] = prev;
+                });
+            });
+
+            // 7. Initialize Visualization
+            initGeoLayer();
+            initRiverLayer();
+            initStationLayer();
+            initTimelineChart();
+            applyLayerVisibility();
+
+            const maxIdx = state.dates.length - 1;
+            DOM.sliderStart.max = maxIdx; DOM.sliderStart.min = state.visibleStartIndex; DOM.sliderStart.value = state.visibleStartIndex;
+            DOM.sliderEnd.max = maxIdx; DOM.sliderEnd.min = state.visibleStartIndex; DOM.sliderEnd.value = state.visibleStartIndex;
+            state.startIndex = state.visibleStartIndex; state.endIndex = state.visibleStartIndex;
+            
+            generateTicks();
+            updateView();
+            
+            const bounds = L.geoJSON(geo).getBounds();
+            map.fitBounds(bounds, { padding: [50, 50] });
+        }
+
+        // =============================================================================
+        // 6. MAP LAYER LOGIC
+        // =============================================================================
+        function initGeoLayer() {
+            if (geoLayer) map.removeLayer(geoLayer);
+            geoLayer = L.geoJSON(state.geoData, { 
+                pane: 'rainPane',
+                style: { fillColor: '#333', weight: 1, opacity: 1, color: 'rgba(255,255,255,0.1)', fillOpacity: 0.1 }, 
+                onEachFeature: (feature, layer) => {
+                    const uniqueId = feature.properties._uniqueId;
+                    const getVal = () => {
+                        if (state.mode === 'daily') return state.dataMap[state.endIndex]?.[uniqueId] || 0;
+                        const end = state.accumulatedMap[state.endIndex]?.[uniqueId] || 0;
+                        const start = (state.startIndex > 0) ? (state.accumulatedMap[state.startIndex - 1]?.[uniqueId] || 0) : 0;
+                        return Math.max(0, end - start);
+                    };
+                    layer.bindTooltip("", { permanent: false, direction: "top", className: "custom-tooltip" });
+                    layer.on('click', (e) => openWardPopup(uniqueId, e.latlng));
+                    layer.on('mouseover', (e) => { 
+                        e.target.setStyle({ weight: 2, color: '#fff', fillOpacity: 0.8 }); e.target.bringToFront(); 
+                        updateLegendHover(getVal());
+                    });
+                    layer.on('mouseout', (e) => { updateWardStyle(e.target); });
+                }
+            }).addTo(map);
+            populateProvinceFilter();
+        }
+
+        function initRiverLayer() {
+            if (riverLayer) map.removeLayer(riverLayer);
+            if (!state.riverData) return;
+            riverLayer = L.geoJSON(state.riverData, {
+                pane: 'riverPane',
+                style: { color: '#60a5fa', weight: 1.5, opacity: 0.6 }
+            }).addTo(map);
+        }
+
+        function initStationLayer() {
+            if (stationLayer) map.removeLayer(stationLayer);
+            if (lakeLayer) map.removeLayer(lakeLayer);
+            const stationMarkers = [], lakeMarkers = [];
+            
+            Object.values(state.stationMeta).forEach(meta => {
+                // Fix: Check for valid coordinates before creating layers
+                if (!Number.isFinite(meta.lat) || !Number.isFinite(meta.lon)) return;
+
+                if (filters.provinces.size > 0) {
+                    const normProv = meta.province || (meta.provinceRaw ? normalizeProvince(meta.provinceRaw) : null);
+                    if (!normProv || !Array.from(filters.provinces).some(p => normalizeProvince(p) === normProv)) return;
+                }
+                
+                const isLake = inferStationType(meta.type) === 'lake';
+                let marker;
+                
+                if (isLake) {
+                    const half = getLakeMinHalfSize(meta.lat, meta.lon);
+                    marker = L.polygon(buildTriangle(meta.lat, meta.lon, half), {
+                        weight: 1, color: '#fff', fillOpacity: 0.4, opacity: 0.8, className: 'station-marker', pane: 'stationPane'
+                    });
+                } else {
+                    marker = L.circleMarker([meta.lat, meta.lon], {
+                        radius: CIRCLE_MARKER_RADIUS, fillColor: '#fff', color: '#fff', weight: 1, opacity: 0.8, fillOpacity: 0.4, className: 'station-marker', pane: 'stationPane'
+                    });
+                }
+
+                marker.stationId = meta.station_id;
+                marker.stationType = isLake ? 'lake' : 'river';
+                marker.stationLabel = meta.name;
+                marker.baseLat = meta.lat; marker.baseLon = meta.lon;
+                marker.bindTooltip(marker.stationLabel, { direction: "top", offset: [0, -5] });
+                marker.on('click', (e) => openStationPopup(marker, e.latlng));
+
+                isLake ? lakeMarkers.push(marker) : stationMarkers.push(marker);
+            });
+
+            if (stationMarkers.length) stationLayer = L.layerGroup(stationMarkers).addTo(map);
+            if (lakeMarkers.length) lakeLayer = L.layerGroup(lakeMarkers).addTo(map);
+        }
+
+        function updateView() {
+            state.startIndex = parseInt(DOM.sliderStart.value);
+            state.endIndex = parseInt(DOM.sliderEnd.value);
+            
+            // Validate Logic
+            if (state.startIndex < state.visibleStartIndex) { state.startIndex = state.visibleStartIndex; DOM.sliderStart.value = state.visibleStartIndex; }
+            if (state.endIndex < state.visibleStartIndex) { state.endIndex = state.visibleStartIndex; DOM.sliderEnd.value = state.visibleStartIndex; }
+            if (state.startIndex > state.endIndex) { state.startIndex = state.endIndex; DOM.sliderStart.value = state.startIndex; }
+
+            // UI Updates
+            const total = parseInt(DOM.sliderEnd.max);
+            if (total > 0) {
+                const leftP = (state.startIndex / total) * 100;
+                const rightP = (state.endIndex / total) * 100;
+                DOM.rangeFill.style.left = `${leftP}%`;
+                DOM.rangeFill.style.width = `${rightP - leftP}%`;
+            }
+            document.getElementById('display-date').innerText = formatDisplayDate(state.dates[state.endIndex]);
+            const dateStartDisplay = document.getElementById('start-date-display');
+            const showRange = state.mode === 'accumulated' && state.startIndex !== state.endIndex;
+            dateStartDisplay.innerText = `(from ${formatDisplayDate(state.dates[state.startIndex])})`;
+            dateStartDisplay.classList.toggle('hidden', !showRange);
+
+            // Map Updates
+            recomputeRainThresholds();
+            if (geoLayer) geoLayer.eachLayer(updateWardStyle);
+            
+            const updateMarker = (layerGroup) => {
+                if (!layerGroup) return;
+                layerGroup.eachLayer(marker => {
+                    const record = state.waterLevelMap[state.endIndex]?.[marker.stationId];
+                    if (!record) { marker.setStyle({ opacity: 0, fillOpacity: 0 }); return; }
+                    
+                    if (marker.stationType === 'lake') {
+                        const ratio = record.ratio || 0;
+                        const color = getMarkerColor('lake', record);
+                        const half = Math.max(computeLakeHalfSize(record.capacity), getLakeMinHalfSize(marker.baseLat, marker.baseLon));
+                        if (marker.setLatLngs) marker.setLatLngs(buildTriangle(marker.baseLat, marker.baseLon, half));
+                        marker.setStyle({ color, fillColor: color, fillOpacity: 0.8, opacity: 1 });
+                        marker.setTooltipContent(`${marker.stationLabel}: ${ratio.toFixed(1)}%`);
+                    } else {
+                        const color = getMarkerColor('river', record);
+                        const warn = record.warningValue || 0;
+                        if (marker.setRadius) marker.setRadius(Math.max(CIRCLE_MARKER_RADIUS, 3 + warn * 2));
+                        marker.setStyle({ color, fillColor: color, fillOpacity: 0.9, opacity: 1 });
+                        marker.setTooltipContent(`${marker.stationLabel}: ${record.warningTrend || 'Alert'} (${warn.toFixed(1)})`);
+                    }
+                });
+            };
+            updateMarker(stationLayer);
+            updateMarker(lakeLayer);
+            updateChartCursor();
+        }
+
+        function updateWardStyle(layer) {
+            const id = layer.feature.properties._uniqueId;
+            const prov = layer.feature.properties["Tỉnh thành mới"];
+            
+            // Filter check
+            if (filters.provinces.size > 0 && prov && !Array.from(filters.provinces).some(p => normalizeProvince(p) === normalizeProvince(prov))) {
+                layer.setStyle({ fillColor: 'transparent', fillOpacity: 0, stroke: false, interactive: false });
+                return;
+            }
+
+            let val = 0;
+            if (state.mode === 'daily') {
+                val = state.dataMap[state.endIndex]?.[id] || 0;
+            } else {
+                const end = state.accumulatedMap[state.endIndex]?.[id] || 0;
+                const start = (state.startIndex > 0) ? (state.accumulatedMap[state.startIndex - 1]?.[id] || 0) : 0;
+                val = Math.max(0, end - start);
+            }
+
+            if (val === 0 && state.mode === 'daily') {
+                 layer.setStyle({ fillColor: 'transparent', fillOpacity: 0, color: 'transparent' });
+                 return;
+            }
+
+            const color = getColor(val);
+            layer.options.interactive = true;
+            layer.setStyle({ fillColor: color, fillOpacity: val === 0 ? 0 : 0.75, color: 'rgba(255,255,255,0.1)', weight: 1 });
+            layer.setTooltipContent(`<div class="text-center"><div class="text-xs font-bold">${state.wardNames[id]}</div><div class="text-blue-400 font-mono text-lg">${val.toFixed(1)} mm</div></div>`);
+        }
+
+        function recomputeRainThresholds() {
+            const vals = [];
+            geoLayer?.eachLayer(layer => {
+                const id = layer.feature.properties._uniqueId;
+                let val = 0;
+                if (state.mode === 'daily') val = state.dataMap[state.endIndex]?.[id] || 0;
+                else {
+                    const end = state.accumulatedMap[state.endIndex]?.[id] || 0;
+                    const start = state.accumulatedMap[state.startIndex - 1]?.[id] || 0;
+                    val = Math.max(0, end - start);
+                }
+                if (val > 0) vals.push(val);
+            });
+            if (!vals.length) { rainThresholds = { p50: 0, p90: 0, p99: 0 }; return; }
+            vals.sort((a,b) => a-b);
+            const pct = p => vals[Math.floor(p * (vals.length - 1))];
+            rainThresholds = { p50: pct(0.5), p90: pct(0.9), p99: pct(0.99) };
+        }
+
+        function getColor(value) {
+            if (value <= 0) return 'transparent';
+            if (rainThresholds.p50 === 0) return '#0ea5e9';
+            if (value < rainThresholds.p50) return '#0ea5e9';
+            if (value < rainThresholds.p90) return '#22c55e';
+            if (value < rainThresholds.p99) return '#f59e0b';
+            return '#ef4444';
+        }
+
+        function updateLegendHover(value) {
+            if (!layerVisibility.rain || !DOM.legendHoverMarker) return;
+            if (value === null || value === undefined || value <= 0 || rainThresholds.p99 <= 0) {
+                DOM.legendHoverMarker.style.opacity = 0;
+                return;
+            }
+            
+            // Simple linear scale for position: 0-p50 -> 0-33%, p50-p90 -> 33-66%, p90-p99+ -> 66-100%
+            let percent = 0;
+            if (value < rainThresholds.p50) percent = (value / rainThresholds.p50) * 33.3;
+            else if (value < rainThresholds.p90) percent = 33.3 + ((value - rainThresholds.p50) / (rainThresholds.p90 - rainThresholds.p50)) * 33.3;
+            else percent = 66.6 + Math.min(1, (value - rainThresholds.p90) / (rainThresholds.p99 - rainThresholds.p90)) * 33.4;
+            DOM.legendHoverMarker.style.left = `${Math.min(100, percent)}%`;
+            DOM.legendHoverMarker.style.opacity = 1;
+        }
+
+        function applyLayerVisibility() {
+            const toggle = (layer, visible) => {
+                if (visible && !map.hasLayer(layer)) layer.addTo(map);
+                if (!visible && map.hasLayer(layer)) map.removeLayer(layer);
+            };
+            if (geoLayer) toggle(geoLayer, layerVisibility.rain);
+            if (riverLayer) toggle(riverLayer, layerVisibility.river);
+            if (stationLayer) toggle(stationLayer, layerVisibility.stations);
+            if (lakeLayer) toggle(lakeLayer, layerVisibility.lakes);
+            
+            if(DOM.legendGradient) DOM.legendGradient.style.background = 'linear-gradient(to right, #0ea5e9, #22c55e, #ef4444)';
+            if(DOM.legendLakeGradient) {
+                const turboColors = d3.range(0, 1.01, 0.1).map(t => d3.interpolateTurbo(t));
+                DOM.legendLakeGradient.style.background = `linear-gradient(to right, ${turboColors.join(',')})`;
+            }
+
+            DOM.legendRain.classList.toggle('hidden', !layerVisibility.rain);
+            DOM.legendLakes.classList.toggle('hidden', !layerVisibility.lakes);
+            DOM.legendStations.classList.toggle('hidden', !layerVisibility.stations);
+            if (!layerVisibility.rain && DOM.legendHoverMarker) DOM.legendHoverMarker.style.opacity = 0;
+
+            DOM.legendModeLabel.textContent = state.mode === 'daily' ? 'Hourly' : 'Accumulated';
+        }
+
+        // =============================================================================
+        // 7. CHART & POPUP LOGIC (D3)
+        // =============================================================================
+        function initTimelineChart() {
+            const container = document.getElementById('chart-container');
+            const svg = d3.select("#timeline-chart");
+            svg.selectAll("*").remove();
+            const width = container.clientWidth, height = container.clientHeight;
+            
+            const defs = svg.append("defs");
+            const gradient = defs.append("linearGradient").attr("id", "chartGradient").attr("x1", "0").attr("y1", "0").attr("x2", "0").attr("y2", "1");
+            gradient.append("stop").attr("offset", "0%").attr("stop-color", "#60a5fa").attr("stop-opacity", 0.8);
+            gradient.append("stop").attr("offset", "100%").attr("stop-color", "#60a5fa").attr("stop-opacity", 0);
+
+            const data = state.timelineStats.slice(state.visibleStartIndex);
+            chartXScale = d3.scaleLinear().domain([0, Math.max(data.length - 1, 0)]).range([0, width]);
+            chartYScale = d3.scaleLinear().domain([0, (d3.max(data, d => d.avg) || 10) * 1.2]).range([height, 5]);
+
+            const area = d3.area().curve(d3.curveMonotoneX).x((d, i) => chartXScale(i)).y0(height).y1(d => chartYScale(d.avg));
+            svg.append("path").datum(data).attr("class", "chart-area").attr("d", area);
+            
+            svg.append("rect").attr("id", "chart-selection-rect").attr("class", "chart-selection-rect").attr("height", height).attr("y", 0);
+            svg.append("line").attr("id", "chart-cursor-line").attr("class", "chart-cursor").attr("y1", 0).attr("y2", height);
+
+            svg.on("click", (event) => {
+                if (!chartXScale) return;
+                const [x] = d3.pointer(event);
+                const idx = state.visibleStartIndex + Math.round(chartXScale.invert(x));
+                DOM.sliderEnd.value = idx;
+                requestViewUpdate();
+            });
+            updateChartCursor();
+        }
+
+        function updateChartCursor() {
+            if (!chartXScale) return;
+            const relStart = Math.max(0, state.startIndex - state.visibleStartIndex);
+            const relEnd = Math.max(0, state.endIndex - state.visibleStartIndex);
+            const xStart = chartXScale(relStart);
+            const xEnd = chartXScale(relEnd);
+            
+            d3.select("#chart-cursor-line").attr("x1", xEnd).attr("x2", xEnd);
+            d3.select("#chart-selection-rect").attr("x", Math.min(xStart, xEnd)).attr("width", Math.max(2, xEnd - xStart));
+        }
+
+        // Shared Line Chart Renderer for Popups
+        function renderLineChart(target, seriesList, options = {}) {
+            const width = options.width || 260, height = options.height || 140;
+            const margin = { top: 10, right: 10, bottom: 22, left: 32 };
+            const innerW = width - margin.left - margin.right, innerH = height - margin.top - margin.bottom;
+            
+            const svg = d3.select(target).append("svg").attr("width", width).attr("height", height).append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+            const domainDates = state.dates.slice(state.visibleStartIndex);
+            const x = d3.scalePoint().domain(domainDates).range([0, innerW]);
+            
+            const allVals = seriesList.flatMap(s => s.data.map(d => d.val)).filter(Number.isFinite);
+            const y = d3.scaleLinear().domain([d3.min(allVals) * 0.9 || 0, (d3.max(allVals) || 1) * 1.1]).range([innerH, 0]);
+
+            seriesList.forEach(s => {
+                const line = d3.line().defined(d => Number.isFinite(d.val)).x(d => x(d.date)).y(d => y(d.val)).curve(d3.curveMonotoneX);
+                svg.append("path").datum(s.data).attr("fill", "none").attr("stroke", s.color).attr("stroke-width", 2).attr("d", line);
+            });
+
+            if (options.annotations) {
+                options.annotations.forEach(ann => {
+                    if (!Number.isFinite(ann.value)) return;
+                    const yPos = y(ann.value);
+                    svg.append("line").attr("x1", 0).attr("x2", innerW).attr("y1", yPos).attr("y2", yPos).attr("stroke", ann.color).attr("stroke-dasharray", "4 2");
+                });
+            }
+            
+            svg.append("g").attr("class", "popup-chart axis").attr("transform", `translate(0,${innerH})`).call(d3.axisBottom(x).tickValues([domainDates[0], domainDates[domainDates.length-1]]).tickFormat(formatDateTick));
+            svg.append("g").attr("class", "popup-chart axis").call(d3.axisLeft(y).ticks(3));
+            
+            // Cursor Line
+            if (Number.isFinite(options.cursorIndex)) {
+                const cx = x(domainDates[options.cursorIndex]);
+                if (cx !== undefined) svg.append("line").attr("class", "popup-cursor-line").attr("x1", cx).attr("x2", cx).attr("y1", 0).attr("y2", innerH).attr("stroke", "#fbbf24").attr("stroke-dasharray", "4 2");
+            }
+        }
+
+        function openWardPopup(id, latlng) {
+            const container = document.createElement('div'); container.className = "w-[260px] p-1";
+            container.innerHTML = `<div class="font-bold text-sm mb-2 text-white border-b border-gray-700 pb-1">${state.wardNames[id] || id}</div>`;
+            const chartDiv = document.createElement('div'); container.appendChild(chartDiv);
+            
+            const mapRef = state.mode === 'daily' ? state.dataMap : state.accumulatedMap;
+            const data = [];
+            for (let i = state.visibleStartIndex; i < state.dates.length; i++) {
+                const raw = mapRef[i]?.[id];
+                const val = (state.mode === 'daily') ? raw : Math.max(0, (raw || 0) - (state.accumulatedMap[state.startIndex-1]?.[id] || 0));
+                if (val !== undefined) data.push({ date: state.dates[i], val: val || 0 });
+            }
+            
+            if (data.length) renderLineChart(chartDiv, [{ data, color: "#38bdf8" }], { cursorIndex: state.endIndex - state.visibleStartIndex });
+            else chartDiv.innerText = "No data";
+            L.popup({ minWidth: 260, className: 'chart-popup' }).setLatLng(latlng).setContent(container).openOn(map);
+        }
+
+        function openStationPopup(marker, latlng) {
+            const sid = marker.stationId;
+            const container = document.createElement('div'); container.className = "w-[280px] p-1";
+            container.innerHTML = `<div class="font-bold text-sm mb-2 text-white border-b border-gray-700 pb-1">${marker.stationLabel}</div>`;
+            const chartDiv = document.createElement('div'); container.appendChild(chartDiv);
+            
+            const build = (fn) => {
+                const res = [];
+                for (let i = state.visibleStartIndex; i < state.dates.length; i++) {
+                    const val = fn(state.waterLevelMap[i]?.[sid]);
+                    if (Number.isFinite(val)) res.push({ date: state.dates[i], val });
+                }
+                return res;
+            };
+
+            if (marker.stationType === 'lake') {
+                const ratio = build(r => r?.ratio);
+                const qIn = build(r => r?.qIn);
+                const qOut = build(r => r?.qOut);
+                renderLineChart(chartDiv, [{data:ratio, color:"#38bdf8"}], { height: 100, cursorIndex: state.endIndex - state.visibleStartIndex });
+                const flowDiv = document.createElement('div'); container.appendChild(flowDiv);
+                renderLineChart(flowDiv, [{data:qIn, color:"#22c55e"}, {data:qOut, color:"#ef4444"}], { height: 100, cursorIndex: state.endIndex - state.visibleStartIndex });
+            } else {
+                const level = build(r => r?.value);
+                const cur = state.waterLevelMap[state.endIndex]?.[sid];
+                const anns = [];
+                if (cur?.bd2) anns.push({ value: cur.bd2, color: "#fbbf24" });
+                if (cur?.bd3) anns.push({ value: cur.bd3, color: "#f97316" });
+                renderLineChart(chartDiv, [{data:level, color:"#38bdf8"}], { height: 150, annotations: anns, cursorIndex: state.endIndex - state.visibleStartIndex });
+            }
+            L.popup({ minWidth: 280, className: 'chart-popup' }).setLatLng(latlng).setContent(container).openOn(map);
+        }
+
+        // =============================================================================
+        // 8. UI EVENT HANDLERS
+        // =============================================================================
+        function generateTicks() {
+            const container = document.getElementById('timeline-ticks');
+            container.innerHTML = '';
+            const step = Math.ceil(state.dates.length / 5);
+            state.dates.forEach((d, i) => { 
+                if (i % step === 0 || i === state.dates.length - 1) { 
+                    const div = document.createElement('div'); div.innerText = formatDateTick(d); container.appendChild(div); 
+                }
+            });
+        }
+
+        function populateProvinceFilter() {
+            DOM.filterProvinceList.innerHTML = '';
+            const provinces = new Map();
+            (state.geoData?.features || []).forEach(f => { if(f.properties["Tỉnh thành mới"]) provinces.set(normalizeProvince(f.properties["Tỉnh thành mới"]), f.properties["Tỉnh thành mới"]); });
+            const sorted = Array.from(provinces.values()).sort();
+            
+            sorted.forEach((p, idx) => {
+                const wrapper = document.createElement('label'); wrapper.className = "flex items-center gap-2 text-white text-xs";
+                const cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = p; cb.className = "accent-blue-500";
+                if (filters.provinces.has(p)) cb.checked = true;
+                wrapper.appendChild(cb); wrapper.appendChild(document.createTextNode(p.replace(/^tỉnh\s+/i, '')));
+                DOM.filterProvinceList.appendChild(wrapper);
+            });
+        }
+
+        // --- Event Listeners ---
+        DOM.sliderStart.addEventListener('input', () => { 
+            stopTimelineAnimation();
+            if(parseInt(DOM.sliderStart.value) > parseInt(DOM.sliderEnd.value)) DOM.sliderEnd.value = DOM.sliderStart.value; 
+            requestViewUpdate(); 
+        });
+        DOM.sliderEnd.addEventListener('input', () => { 
+            stopTimelineAnimation();
+            if(parseInt(DOM.sliderEnd.value) < parseInt(DOM.sliderStart.value)) DOM.sliderStart.value = DOM.sliderEnd.value; 
+            requestViewUpdate(); 
+        });
+
+        function stopTimelineAnimation() {
+            if (timelinePlayTimer) {
+                clearInterval(timelinePlayTimer);
+                timelinePlayTimer = null;
+                DOM.playIcon.classList.remove('hidden');
+                DOM.pauseIcon.classList.add('hidden');
+                state.isPlaying = false;
+            }
+        }
+
+        DOM.timelinePlayPause.addEventListener('click', () => {
+            if (state.isPlaying) {
+                stopTimelineAnimation();
+            } else {
+                state.isPlaying = true;
+                DOM.playIcon.classList.add('hidden');
+                DOM.pauseIcon.classList.remove('hidden');
+                timelinePlayTimer = setInterval(() => {
+                    let current = parseInt(DOM.sliderEnd.value);
+                    if (current >= parseInt(DOM.sliderEnd.max)) { stopTimelineAnimation(); return; }
+                    DOM.sliderEnd.value = current + 1;
+                    requestViewUpdate();
+                }, 200); // Animation speed
+            }
+        });
+
+        window.addEventListener('resize', () => { if(state.timelineStats.length) initTimelineChart(); });
+        
+        DOM.layerToggleBtn.addEventListener('click', () => DOM.layerPanel.classList.toggle('hidden'));
+        
+        DOM.legendToggleBtn.addEventListener('click', () => {
+            DOM.legendPanel.classList.toggle('hidden');
+            DOM.filterPanel.classList.add('hidden');
+        });
+        
+        DOM.filterToggleBtn.addEventListener('click', () => { DOM.filterPanel.classList.toggle('hidden'); DOM.legendPanel.classList.add('hidden'); });
+        DOM.filterApplyBtn.addEventListener('click', () => {
+            filters.provinces = new Set(Array.from(DOM.filterProvinceList.querySelectorAll('input:checked')).map(i => i.value));
+            initGeoLayer(); initStationLayer(); applyLayerVisibility(); updateView();
+        });
+        DOM.filterResetBtn.addEventListener('click', () => {
+            filters.provinces = new Set();
+            DOM.filterProvinceList.querySelectorAll('input').forEach(cb => cb.checked = false);
+            initGeoLayer(); initStationLayer(); applyLayerVisibility(); updateView();
+        });
+
+        DOM.chkStations.addEventListener('change', (e) => { layerVisibility.stations = e.target.checked; applyLayerVisibility(); });
+        DOM.chkLakes.addEventListener('change', (e) => { layerVisibility.lakes = e.target.checked; applyLayerVisibility(); });
+        DOM.chkRivers.addEventListener('change', (e) => { layerVisibility.river = e.target.checked; applyLayerVisibility(); });
+        
+        DOM.rainRadios.forEach(r => r.addEventListener('change', (e) => {
+            const val = e.target.value;
+            layerVisibility.rain = (val !== 'none');
+            state.mode = (val === 'none') ? state.mode : val;
+            
+            if (state.mode === 'daily') { DOM.sliderStart.style.opacity = 0; DOM.rangeFill.style.opacity = 0; }
+            else { DOM.sliderStart.style.opacity = 1; DOM.rangeFill.style.opacity = 1; }
+            
+            stopTimelineAnimation();
+            applyLayerVisibility();
+            recomputeRainThresholds();
+            requestViewUpdate();
+        }));
+
+        // Story Logic
+        function renderStoryList() {
+            DOM.storyList.innerHTML = '';
+            DOM.storyEmpty.classList.toggle('hidden', state.stories.length > 0);
+            DOM.storyCount.textContent = state.stories.length;
+            
+            state.stories.forEach((story) => {
+                const item = document.createElement('div');
+                item.className = "glass-panel border border-gray-700 rounded-lg p-3 flex items-center justify-between gap-3";
+                item.innerHTML = `<div><div class="text-sm text-white font-semibold">${story.title}</div><div class="text-[11px] text-gray-400">${story.rainMode}</div></div>`;
+                const playBtn = document.createElement('button');
+                playBtn.className = "px-3 py-1 rounded bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition";
+                playBtn.textContent = "Play";
+                playBtn.onclick = () => {
+                    // Apply settings
+                    DOM.sliderStart.value = story.startIndex; DOM.sliderEnd.value = story.startIndex; // Start at beginning
+                    layerVisibility = { ...layerVisibility, ...story.layers };
+                    state.mode = story.rainMode !== 'none' ? story.rainMode : 'daily';
+                    layerVisibility.rain = story.rainMode !== 'none';
+                    applyLayerVisibility();
+                    requestViewUpdate();
+                    // Animate range
+                    let curr = story.startIndex;
+                    const interval = setInterval(() => {
+                        if(curr >= story.endIndex) clearInterval(interval);
+                        else { curr++; DOM.sliderEnd.value = curr; requestViewUpdate(); }
+                    }, 400);
+                };
+                item.appendChild(playBtn);
+                DOM.storyList.appendChild(item);
+            });
+        }
+
+        DOM.storyToggleBtn.addEventListener('click', () => { DOM.storyModal.classList.remove('hidden'); DOM.storyModal.classList.add('flex'); });
+        DOM.storyClose.addEventListener('click', () => { DOM.storyModal.classList.add('hidden'); DOM.storyModal.classList.remove('flex'); });
+        
+        DOM.storyForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            state.stories.push({
+                title: DOM.storyTitle.value,
+                startIndex: parseInt(DOM.storyStart.value),
+                endIndex: parseInt(DOM.storyEnd.value),
+                rainMode: DOM.storyRain.value,
+                layers: { 
+                    lakes: DOM.storyLakes.checked, stations: DOM.storyStations.checked, 
+                    rivers: DOM.storyRivers.checked, rain: DOM.storyRainLayer.checked 
+                }
+            });
+            renderStoryList();
+            DOM.storyClose.click();
+        });
+
+        DOM.storyUseCurrent.addEventListener('click', () => {
+            // Populate dropdowns if empty
+            if(DOM.storyStart.options.length === 0) {
+                state.dates.forEach((d, i) => {
+                    const opt = new Option(`${formatDateTick(d)}`, i);
+                    DOM.storyStart.add(opt); DOM.storyEnd.add(opt.cloneNode(true));
+                });
+            }
+            DOM.storyStart.value = state.startIndex;
+            DOM.storyEnd.value = state.endIndex;
+            DOM.storyRain.value = layerVisibility.rain ? state.mode : 'none';
+        });
+
+        if (DOM.storyExportBtn) DOM.storyExportBtn.addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify({ version: "1.0", scenes: state.stories }, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a'); a.href = url; a.download = 'story.json'; a.click();
+        });
+        
+        if (DOM.storyImportInput) DOM.storyImportInput.addEventListener('change', (e) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const obj = JSON.parse(e.target.result);
+                    if (Array.isArray(obj.scenes)) { state.stories = obj.scenes; renderStoryList(); }
+                } catch(err) { alert("Invalid file"); }
+            };
+            if(e.target.files[0]) reader.readAsText(e.target.files[0]);
+        });
+
+        // Start Application
+        initData();
+    </script>
+</body>
+</html>
