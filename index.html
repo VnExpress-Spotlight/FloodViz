@@ -489,6 +489,34 @@
         const isMobileView = () => window.matchMedia('(max-width: 640px)').matches;
 
         // =============================================================================
+        // 1.1 LOCAL CACHE HELPERS
+        // =============================================================================
+        const STORAGE_KEYS = {
+            storySlides: 'viz-story-slides',
+            uiState: 'viz-ui-state'
+        };
+        const loadCache = (key, fallback) => {
+            if (typeof localStorage === 'undefined') return fallback;
+            try {
+                const raw = localStorage.getItem(key);
+                if (!raw) return fallback;
+                const parsed = JSON.parse(raw);
+                return parsed ?? fallback;
+            } catch (err) {
+                console.warn('Cache load failed', err);
+                return fallback;
+            }
+        };
+        const saveCache = (key, value) => {
+            if (typeof localStorage === 'undefined') return;
+            try { localStorage.setItem(key, JSON.stringify(value)); }
+            catch (err) { console.warn('Cache write failed', err); }
+        };
+
+        const cachedStorySlides = loadCache(STORAGE_KEYS.storySlides, []);
+        const cachedUIState = loadCache(STORAGE_KEYS.uiState, {});
+
+        // =============================================================================
         // 2. STATE MANAGEMENT
         // =============================================================================
         let state = {
@@ -522,10 +550,21 @@
             maxTotal: 300
         };
 
-        let layerVisibility = { rain: true, river: true, stations: true, lakes: true };
-        let layerOpacity = { rain: 0.75, hydro: 0.9 };
-        let filters = { provinces: new Set(), rivers: new Set() };
+        const clampOpacity = (val, fallback) => {
+            const num = Number(val);
+            if (!Number.isFinite(num)) return fallback;
+            return Math.min(1, Math.max(0, num));
+        };
+        const cachedFilters = cachedUIState?.filters || {};
+        let layerVisibility = { rain: true, river: true, stations: true, lakes: true, ...(cachedUIState?.layerVisibility || {}) };
+        let layerOpacity = { 
+            rain: clampOpacity(cachedUIState?.layerOpacity?.rain, 0.75), 
+            hydro: clampOpacity(cachedUIState?.layerOpacity?.hydro, 0.9) 
+        };
+        let filters = { provinces: new Set(cachedFilters.provinces || []), rivers: new Set(cachedFilters.rivers || []) };
         let rainThresholds = { p50: 0, p90: 0, p99: 0 };
+        let cachedTimelineState = cachedUIState?.timeline || null;
+        let cachedActiveSlideIndex = Number.isFinite(cachedUIState?.activeSlideIndex) ? cachedUIState.activeSlideIndex : 0;
         
         // Runtime Variables
         let pendingUpdate = null;
@@ -559,6 +598,33 @@
                 }
                 return true;
             });
+        }
+
+        function persistStorySlides() {
+            saveCache(STORAGE_KEYS.storySlides, storySlides);
+        }
+
+        function persistDashboardState() {
+            const payload = {
+                layerVisibility,
+                layerOpacity,
+                filters: {
+                    provinces: Array.from(filters.provinces || []),
+                    rivers: Array.from(filters.rivers || [])
+                },
+                timeline: { start: state.startIndex, end: state.endIndex },
+                activeSlideIndex
+            };
+            saveCache(STORAGE_KEYS.uiState, payload);
+        }
+
+        let persistTimer = null;
+        function schedulePersistDashboardState() {
+            if (persistTimer) return;
+            persistTimer = setTimeout(() => {
+                persistTimer = null;
+                persistDashboardState();
+            }, 150);
         }
 
         // =============================================================================
@@ -604,6 +670,13 @@
             sLabelsStations: document.getElementById('slabels-stations'),
             sLabelsLakes: document.getElementById('slabels-lakes'),
         };
+
+        // Sync initial UI controls with cached state
+        if (DOM.chkLakes) DOM.chkLakes.checked = !!layerVisibility.lakes;
+        if (DOM.chkStations) DOM.chkStations.checked = !!layerVisibility.stations;
+        if (DOM.chkRivers) DOM.chkRivers.checked = !!layerVisibility.river;
+        if (DOM.opacityRain) DOM.opacityRain.value = Math.round(layerOpacity.rain * 100);
+        if (DOM.opacityHydro) DOM.opacityHydro.value = Math.round(layerOpacity.hydro * 100);
 
         const defaultControls = (ol.control && typeof ol.control.defaults === 'function') 
             ? ol.control.defaults({ attribution: false })
@@ -1086,9 +1159,18 @@
             populateRiverFilter();
 
             const maxIdx = state.dates.length - 1;
-            DOM.sliderStart.max = maxIdx; DOM.sliderStart.min = state.visibleStartIndex; DOM.sliderStart.value = state.visibleStartIndex;
-            DOM.sliderEnd.max = maxIdx; DOM.sliderEnd.min = state.visibleStartIndex; DOM.sliderEnd.value = state.visibleStartIndex;
-            state.startIndex = state.visibleStartIndex; state.endIndex = state.visibleStartIndex;
+            DOM.sliderStart.max = maxIdx; DOM.sliderStart.min = state.visibleStartIndex;
+            DOM.sliderEnd.max = maxIdx; DOM.sliderEnd.min = state.visibleStartIndex;
+
+            const cachedStart = Number.isFinite(cachedTimelineState?.start) ? cachedTimelineState.start : state.visibleStartIndex;
+            const cachedEnd = Number.isFinite(cachedTimelineState?.end) ? cachedTimelineState.end : state.visibleStartIndex;
+            const startVal = Math.min(Math.max(state.visibleStartIndex, cachedStart), maxIdx);
+            const endVal = Math.min(Math.max(startVal, cachedEnd), maxIdx);
+
+            DOM.sliderStart.value = startVal;
+            DOM.sliderEnd.value = endVal;
+            state.startIndex = startVal; 
+            state.endIndex = endVal;
             
             generateTicks();
             updateView();
@@ -1286,6 +1368,7 @@
             if (stationLayer?.getSource()) stationLayer.getSource().changed();
             if (lakeLayer?.getSource()) lakeLayer.getSource().changed();
             updateChartCursor();
+            schedulePersistDashboardState();
         }
 
         function recomputeRainThresholds() {
@@ -1684,8 +1767,8 @@
             opacity: { rain: 0.75, hydro: 0.9 }
         };
 
-        let storySlides = [];
-        let activeSlideIndex = 0;
+        let storySlides = Array.isArray(cachedStorySlides) ? cachedStorySlides : [];
+        let activeSlideIndex = storySlides.length ? Math.min(Math.max(0, cachedActiveSlideIndex), storySlides.length - 1) : 0;
         let isStoryModalInitialized = false;
         let storyMap;
         let previewMap;
@@ -1929,7 +2012,8 @@
         }
 
         function renderStoryJson() {
-            // JSON editor removed; keep preview in sync when state changes
+            persistStorySlides();
+            persistDashboardState();
             renderStoryPreview();
         }
 
@@ -2584,9 +2668,9 @@
 
         DOM.storyToggleBtn.addEventListener('click', toggleStoryModal);
 
-        DOM.chkStations.addEventListener('change', (e) => { layerVisibility.stations = e.target.checked; applyLayerVisibility(); });
-        DOM.chkLakes.addEventListener('change', (e) => { layerVisibility.lakes = e.target.checked; applyLayerVisibility(); });
-        DOM.chkRivers.addEventListener('change', (e) => { layerVisibility.river = e.target.checked; applyLayerVisibility(); });
+        DOM.chkStations.addEventListener('change', (e) => { layerVisibility.stations = e.target.checked; applyLayerVisibility(); schedulePersistDashboardState(); });
+        DOM.chkLakes.addEventListener('change', (e) => { layerVisibility.lakes = e.target.checked; applyLayerVisibility(); schedulePersistDashboardState(); });
+        DOM.chkRivers.addEventListener('change', (e) => { layerVisibility.river = e.target.checked; applyLayerVisibility(); schedulePersistDashboardState(); });
         const bindOpacity = (el, key) => {
             if (!el) return;
             el.addEventListener('input', () => { layerOpacity[key] = parseInt(el.value, 10) / 100; updateView(); });
