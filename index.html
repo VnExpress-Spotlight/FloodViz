@@ -5,12 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bảng điều khiển mưa & mực nước</title>
     
-    <!-- OpenLayers -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@9.1.0/ol.css" />
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
         body { font-family: 'Inter', sans-serif; background: #1a1a1a; color: #e5e5e5; overflow: hidden; }
@@ -43,40 +41,14 @@
             box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
             cursor: pointer;
         }
-        #opacity-rain::-moz-range-thumb, #opacity-hydro::-moz-range-thumb {
-            background: #f59e0b;
-            border: 2px solid #0f172a;
-            width: 16px; height: 16px; border-radius: 50%;
-            box-shadow: 0 0 6px rgba(245, 158, 11, 0.7);
-            cursor: pointer;
-        }
 
         /* --- UI Components --- */
         .glass-panel { background: rgba(30, 30, 30, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         
-        /* --- Leaflet Customization --- */
+        /* --- Leaflet/OL Customization --- */
         .leaflet-bar a { background-color: #333; color: #fff; border-bottom: 1px solid #444; }
-        .leaflet-bar a:hover { background-color: #444; }
         .leaflet-container { background: #111; }
-        .leaflet-popup-content-wrapper { background: rgba(30, 30, 30, 0.95); color: white; border-radius: 8px; backdrop-filter: blur(4px); }
-        .leaflet-popup-tip { background: rgba(30, 30, 30, 0.95); }
         
-        .custom-tooltip { background: rgba(0,0,0,0.9); border: 1px solid #444; color: white; font-size: 12px; border-radius: 4px; padding: 6px 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .leaflet-tooltip-top:before { border-top-color: rgba(0,0,0,0.9); }
-
-        /* --- D3 Chart Styling --- */
-        #chart-container { position: relative; height: 60px; width: 100%; margin-bottom: 0px; }
-        .chart-area { fill: url(#chartGradient); opacity: 0.6; stroke: #60a5fa; stroke-width: 1.5px; }
-        .chart-selection-rect { fill: #3b82f6; opacity: 0.2; }
-        .chart-cursor { stroke: #fbbf24; stroke-width: 2px; stroke-dasharray: 4 2; opacity: 0.8; }
-        
-        .popup-chart path { fill: #60a5fa; fill-opacity: 0.3; stroke: #60a5fa; stroke-width: 2px; }
-        .popup-chart .domain, .popup-chart .tick line { stroke: #555; }
-        .popup-chart .tick text { fill: #999; font-size: 9px; }
-        .popup-cursor-line { stroke: #fbbf24; stroke-width: 1.5px; stroke-dasharray: 3 2; opacity: 1; transition: x1 0.05s linear, x2 0.05s linear; }
-        
-        /* --- Marker Animation --- */
-        .station-marker { transition: all 0.3s ease; box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
         .map-tooltip { 
             pointer-events: none;
             white-space: nowrap;
@@ -105,106 +77,83 @@
             white-space: nowrap;
         }
         .chart-tooltip.visible { opacity: 1; }
+        
+        /* --- D3 Chart Styling --- */
+        #chart-container { position: relative; height: 60px; width: 100%; margin-bottom: 0px; }
+        .chart-area { fill: url(#chartGradient); opacity: 0.6; stroke: #60a5fa; stroke-width: 1.5px; }
+        .chart-selection-rect { fill: #3b82f6; opacity: 0.2; }
+        .chart-cursor { stroke: #fbbf24; stroke-width: 2px; stroke-dasharray: 4 2; opacity: 0.8; }
+        
+        .popup-chart path { fill: #60a5fa; fill-opacity: 0.3; stroke: #60a5fa; stroke-width: 2px; }
+        .popup-chart .domain, .popup-chart .tick line { stroke: #555; }
+        .popup-chart .tick text { fill: #999; font-size: 9px; }
+        .popup-cursor-line { stroke: #fbbf24; stroke-width: 1.5px; stroke-dasharray: 3 2; opacity: 1; transition: x1 0.05s linear, x2 0.05s linear; }
+
         #pinned-panel {
-            position: absolute;
-            top: 1rem;
-            right: 1rem;
-            width: 18rem;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-            z-index: 40;
-            pointer-events: auto;
-            align-items: center;
+            position: absolute; top: 1rem; right: 1rem; width: 18rem;
+            display: flex; flex-direction: column; gap: 0.5rem;
+            z-index: 40; pointer-events: auto; align-items: center;
         }
         #pinned-panel > div { pointer-events: auto; }
-        #pinned-panel-header,
-        #mobile-pinned-toggle,
-        #mobile-pinned-backdrop { display: none; }
+        #pinned-panel-header, #mobile-pinned-toggle, #mobile-pinned-backdrop { display: none; }
         .current-time-label { font-weight: 800; }
+
+        /* --- Story Modal CSS --- */
+        .story-modal-open { overflow: hidden; }
+        .json-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
+        .json-scroll::-webkit-scrollbar-track { background: #f1f5f9; }
+        .json-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .json-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .bounds-handle { transition: transform 0.1s; }
+        .bounds-handle:hover { transform: scale(1.2); }
+        .tab-btn.active .icon-box { background-color: #1e293b; color: white; }
+        .tab-btn.active span { color: #0f172a; font-weight: 700; }
+        #smap-target .ol-viewport { border-radius: 0.5rem; }
+        /* Preview mobile zone band (positioned dynamically within bounds box) */
+        #preview-mobile-zone { position: absolute; display: none; border-left: 1px dashed rgba(34,197,94,0.4); border-right: 1px dashed rgba(34,197,94,0.4); background: rgba(34,197,94,0.06); align-items: start; justify-content: center; pointer-events: none; }
+        #preview-mobile-zone span { margin-top: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700; color: #16a34a; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(34,197,94,0.5); border-radius: 9999px; }
+        
         @media (max-width: 640px) {
             #pinned-panel { display: none; }
             #chart-container, #timeline-chart, .timeline-chart-label { display: none; }
-            .timeline-wrapper { 
-                height: 150px; 
-                padding-bottom: 3rem; 
-                padding-left: 1rem; 
-                padding-right: 1rem;
-                align-items: center;
-            }
-            .timeline-wrapper .glass-panel {
-                width: 100%;
-                max-width: 640px;
-                margin: 0 auto;
-            }
-            #mobile-pinned-preview {
-                display: flex;
-                flex-direction: column;
-                gap: 0.5rem;
-                margin-bottom: 0.25rem;
-                width: 100%;
-            }
-            #mobile-pinned-preview .preview-card {
-                width: 100%;
-                background: rgba(30,30,30,0.8);
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 0.75rem;
-                padding: 0.5rem;
-                box-shadow: 0 12px 25px rgba(0,0,0,0.35);
-            }
-            #mobile-pinned-preview .preview-card h4 {
-                font-size: 0.75rem;
-                color: #fff;
-                margin-bottom: 0.25rem;
-            }
-            #mobile-pinned-preview .preview-chart {
-                height: 80px;
-                max-height: 80px;
-                width: 100%;
-                max-width: 100%;
-                overflow: hidden;
-            }
-            .current-time-wrap {
-                display: block;
-            }
-            .current-time-label {
-                margin: 0 0 2px;
-                display: block;
-                font-size: 9px;
-            }
-            .current-time-values {
-                margin-top: 0;
-            }
-            #display-date {
-                font-size: 0.95rem;
-            }
+            .timeline-wrapper { height: 150px; padding-bottom: 3rem; padding-left: 1rem; padding-right: 1rem; align-items: center; }
+            .timeline-wrapper .glass-panel { width: 100%; max-width: 640px; margin: 0 auto; }
+            #mobile-pinned-preview { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 0.25rem; width: 100%; }
+            #mobile-pinned-preview .preview-card { width: 100%; background: rgba(30,30,30,0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 0.75rem; padding: 0.5rem; box-shadow: 0 12px 25px rgba(0,0,0,0.35); }
+            #mobile-pinned-preview .preview-card h4 { font-size: 0.75rem; color: #fff; margin-bottom: 0.25rem; }
+            #mobile-pinned-preview .preview-chart { height: 80px; max-height: 80px; width: 100%; max-width: 100%; overflow: hidden; }
+            .current-time-wrap { display: block; }
+            .current-time-label { margin: 0 0 2px; display: block; font-size: 9px; }
+            .current-time-values { margin-top: 0; }
+            #display-date { font-size: 0.95rem; }
         }
     </style>
 </head>
 <body>
 
-    <!-- Map Layer -->
     <div id="map"></div>
 
-    <!-- Layer Controls (Top Left) -->
     <div class="absolute top-4 left-4 z-50 flex flex-col gap-2">
-        <!-- Layer Toggle -->
         <button id="layer-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
             <svg class="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7h16M4 12h16M4 17h16"/></svg>
             Lớp dữ liệu
         </button>
         
-        <!-- Legend Toggle -->
         <button id="legend-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
             <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 6h.01M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 00-2 2z"/></svg>
             Chú giải
         </button>
 
-        <!-- Filter Toggle -->
         <button id="filter-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition">
             <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4h18M4 9h16M6 14h12M9 19h6"/></svg>
             Bộ lọc
         </button>
+
+        <button id="story-toggle-btn" class="glass-panel px-3 py-2 rounded-lg shadow-lg text-xs font-semibold flex items-center gap-2 hover:bg-white/10 transition text-amber-400 border-amber-500/30">
+            <i data-lucide="file-pen-line" class="w-4 h-4"></i>
+            Tạo Story
+        </button>
+
         <div class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden" id="filter-panel">
             <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Bộ lọc</div>
             <div class="flex flex-col gap-2 text-sm">
@@ -219,9 +168,7 @@
             </div>
         </div>
 
-        <!-- Legend Panel (moved) -->
         <div id="legend-panel" class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden">
-            <!-- Rainfall Legend -->
             <div id="legend-rain" class="hidden">
                 <div class="flex items-center justify-between mb-2">
                     <div class="text-[10px] uppercase tracking-wider text-gray-400">Mưa</div>
@@ -234,14 +181,10 @@
                     <span id="legend-min-val">Thấp</span><span id="legend-max-val">Cao</span>
                 </div>
             </div>
-            <!-- Lake Legend -->
             <div id="legend-lakes" class="mt-3 hidden"><div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Hồ chứa</div><div class="flex items-center gap-2 text-xs"><div class="w-3 h-3 border border-sky-300"></div><span>Tỷ lệ đầy</span></div></div>
-            <!-- Station Legend -->
             <div id="legend-stations" class="mt-3 hidden"><div class="text-[10px] uppercase tracking-wider text-gray-400 mb-1">Trạm sông</div><div class="flex items-center gap-2 text-xs"><div class="w-3 h-3 rounded-full border border-amber-400"></div><span>Mức cảnh báo</span></div></div>
         </div>
 
-
-        <!-- Layers Panel Content -->
         <div id="layer-panel" class="glass-panel px-4 py-3 rounded-lg shadow-2xl w-64 hidden">
             <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Lớp phủ</div>
             <div class="space-y-2 text-sm">
@@ -266,32 +209,22 @@
             <div class="mt-3 border-t border-gray-700 pt-2">
                 <div class="text-[10px] uppercase tracking-wider text-gray-400 mb-2">Chế độ mưa</div>
                 <div class="flex flex-col gap-1 text-sm">
-                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="radio" name="rain-mode" value="none" class="accent-blue-500">
-                        <span class="text-gray-200">Tắt</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="radio" name="rain-mode" value="daily" class="accent-blue-500">
-                        <span class="text-gray-200">Theo giờ</span>
-                    </label>
-                    <label class="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="radio" name="rain-mode" value="accumulated" class="accent-blue-500" checked>
-                        <span class="text-gray-200">Tích lũy</span>
-                    </label>
+                    <select id="slayer-rainmode" class="w-full px-3 py-1 rounded bg-slate-800 border border-slate-700 text-gray-100" onchange="updateStoryLayer('rainMode', this.value)">
+                        <option value="none">Tắt</option>
+                        <option value="daily">Theo giờ</option>
+                        <option value="accumulated">Tích lũy</option>
+                    </select>
                 </div>
             </div>
         </div>
     </div>
-    <!-- Pinned Charts Panel -->
+
     <div id="pinned-panel">
         <div id="pinned-list" class="flex flex-col gap-3 pointer-events-auto"></div>
     </div>
 
-    <!-- Bottom Timeline Bar -->
-    <div class="absolute bottom-0 left-0 right-0 h-[180px] bg-gradient-to-t from-black via-[#1a1a1a] to-transparent z-50 flex flex-col justify-end pb-6 px-6 pointer-events-none timeline-wrapper">
+    <div class="absolute bottom-0 left-0 right-0 h-[180px] bg-gradient-to-t from-black via-[#1a1a1a] to-transparent z-40 flex flex-col justify-end pb-6 px-6 pointer-events-none timeline-wrapper">
         <div class="glass-panel w-full rounded-xl p-4 pointer-events-auto flex flex-col gap-1">
-            
-            <!-- Play/Date Row -->
             <div class="flex items-center justify-between mb-1">
                 <div class="flex items-center gap-2">
                     <div class="current-time-wrap">
@@ -304,15 +237,12 @@
                 <div class="text-[10px] text-gray-400 tracking-wider font-normal timeline-chart-label">Lượng mưa trung bình</div>
             </div>
 
-            <!-- Mobile Pinned Preview -->
             <div id="mobile-pinned-preview"></div>
 
-            <!-- Chart Container -->
             <div id="chart-container">
                 <svg id="timeline-chart" width="100%" height="100%"></svg>
             </div>
 
-            <!-- Dual Slider Container -->
             <div class="range-container">
                 <div class="range-track"></div>
                 <div class="range-fill" id="range-fill"></div>
@@ -320,11 +250,213 @@
                 <input type="range" id="slider-end" min="0" max="100" value="0" step="1">
             </div>
             
-            <!-- Ticks -->
             <div class="flex justify-between text-[10px] text-gray-500 font-mono px-1 mt-1" id="timeline-ticks"></div>
         </div>
     </div>
 
+    <div id="story-modal" class="fixed inset-0 z-[1000] hidden">
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="toggleStoryModal()"></div>
+        
+        <div class="absolute inset-4 md:inset-10 bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col text-slate-800">
+            <header class="bg-white border-b border-gray-200 px-6 py-3 flex justify-between items-center shadow-sm z-10">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="map" class="text-blue-600"></i>
+                    <h1 class="font-bold text-lg">Story Creator</h1>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="copyStoryJson()" class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span id="copy-text">Copy JSON</span>
+                    </button>
+                    <button onclick="triggerStoryJsonUpload()" class="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md transition-colors">
+                        <i data-lucide="upload" class="w-4 h-4"></i>
+                        Load JSON
+                    </button>
+                    <input id="story-json-file" type="file" accept="application/json" class="hidden" onchange="handleStoryJsonFile(event)">
+                    <button onclick="toggleStoryPreview()" class="md:hidden flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors">
+                        <i data-lucide="eye" class="w-4 h-4"></i>
+                        Preview
+                    </button>
+                    <button onclick="toggleStoryModal()" class="flex items-center justify-center w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="flex-1 flex overflow-hidden">
+                <nav class="w-20 bg-slate-900 flex flex-col items-center py-6 gap-6 flex-shrink-0 z-20">
+                    <button onclick="switchStoryTab('general')" class="tab-btn active text-slate-400 hover:text-white flex flex-col items-center gap-1 transition-colors group" data-tab="general">
+                        <div class="p-2 rounded-lg icon-box group-hover:bg-slate-800 transition-colors"><i data-lucide="settings"></i></div>
+                        <span class="text-[10px] font-medium group-hover:text-white">General</span>
+                    </button>
+                    <button onclick="switchStoryTab('layers')" class="tab-btn text-slate-400 hover:text-white flex flex-col items-center gap-1 transition-colors group" data-tab="layers">
+                        <div class="p-2 rounded-lg icon-box group-hover:bg-slate-800 transition-colors"><i data-lucide="layers"></i></div>
+                        <span class="text-[10px] font-medium group-hover:text-white">Layers</span>
+                    </button>
+                    <button onclick="switchStoryTab('map')" class="tab-btn text-slate-400 hover:text-white flex flex-col items-center gap-1 transition-colors group" data-tab="map">
+                        <div class="p-2 rounded-lg icon-box group-hover:bg-slate-800 transition-colors"><i data-lucide="maximize"></i></div>
+                        <span class="text-[10px] font-medium group-hover:text-white">Bounds</span>
+                    </button>
+                </nav>
+
+                <section class="flex-1 bg-white overflow-y-auto p-6 relative">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm font-semibold text-gray-700">Slides</span>
+                            <div id="slide-chips" class="flex flex-wrap gap-2"></div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button onclick="addSlide()" class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md transition-colors flex items-center gap-1">
+                                <i data-lucide="plus" class="w-4 h-4"></i> Thêm slide
+                            </button>
+                            <button onclick="deleteSlide()" class="px-3 py-1.5 text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 rounded-md transition-colors flex items-center gap-1">
+                                <i data-lucide="trash" class="w-4 h-4"></i> Xóa
+                            </button>
+                        </div>
+                    </div>
+                    <div id="stab-general" class="story-tab-content max-w-2xl mx-auto space-y-6">
+                        <h2 class="text-xl font-bold border-b pb-2 mb-4">General Information</h2>
+                        <div class="grid gap-4">
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">ID</label><input type="number" id="sinp-id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" oninput="updateStoryField('id', this.value, 'number')"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Title</label><input type="text" id="sinp-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" oninput="updateStoryField('title', this.value)"></div>
+                            <div><label class="block text-sm font-medium text-gray-700 mb-1">Body Text</label><textarea id="sinp-body" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 outline-none" oninput="updateStoryField('body', this.value)"></textarea></div>
+                        </div>
+                        <div class="mt-6 border-t pt-4 space-y-4">
+                            <h2 class="text-xl font-bold">Timeline</h2>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="block text-sm font-medium text-gray-700 mb-1">Start Time</label><input type="datetime-local" id="sinp-time-start" class="w-full px-3 py-2 border border-gray-300 rounded-md" oninput="updateStoryTimeline('start', this.value)"></div>
+                                <div><label class="block text-sm font-medium text-gray-700 mb-1">End Time</label><input type="datetime-local" id="sinp-time-end" class="w-full px-3 py-2 border border-gray-300 rounded-md" oninput="updateStoryTimeline('end', this.value)"></div>
+                            </div>
+                            <div class="space-y-3 pt-4 border-t">
+                                <label class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700">Animate Timeline</span><input type="checkbox" id="sinp-animate" class="accent-blue-600 w-5 h-5" onchange="updateStoryTimeline('animate', this.checked)"></label>
+                                <label class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700">Snap to Start</span><input type="checkbox" id="sinp-snap" class="accent-blue-600 w-5 h-5" onchange="updateStoryTimeline('snapToStart', this.checked)"></label>
+                                <label class="flex items-center justify-between"><span class="text-sm font-medium text-gray-700">Show Mini Chart</span><input type="checkbox" id="sinp-miniChart" class="accent-blue-600 w-5 h-5" onchange="updateStoryField('timelineMiniChart', this.checked)"></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="stab-map" class="story-tab-content hidden max-w-4xl mx-auto h-full flex flex-col">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-xl font-bold">Map Viewport</h2>
+                            <div class="flex items-center gap-3 bg-white px-3 py-1 rounded-full border shadow-sm">
+                                <span class="text-xs font-medium text-gray-500">ASPECT RATIO</span>
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="slock-ratio" checked class="accent-blue-600 w-4 h-4">
+                                    <span class="text-sm flex items-center gap-1"><i data-lucide="monitor" class="w-4 h-4"></i> PC (16:9)</span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="flex-1 bg-slate-50 border rounded-lg p-4 flex flex-col gap-4 h-96">
+                            <div class="relative w-full h-full bg-gray-100 rounded border border-blue-200 shadow-inner overflow-hidden select-none" id="smap-wrapper">
+                                <div id="smap-target" class="absolute inset-0 z-0"></div>
+                                
+                                <div id="sbounds-box" class="absolute z-10 border-2 border-green-500 bg-green-500/10 cursor-move box-border" style="left: 20%; top: 25%; width: 355px; height: 200px;"> 
+                                    <div class="absolute -top-7 left-0 bg-green-600 text-white text-[10px] px-2 py-0.5 rounded shadow font-mono whitespace-nowrap">VIEWPORT</div>
+                                    
+                                    <div class="absolute inset-y-0 left-1/2 -translate-x-1/2 w-[31.6%] border-x border-dashed border-green-400/50 pointer-events-none flex items-center justify-center bg-green-500/5">
+                                        <span class="text-[9px] text-green-700 font-mono bg-white/60 px-1 rounded whitespace-nowrap">Mobile Zone</span>
+                                    </div>
+                                    
+                                    <div id="sresize-handle" class="bounds-handle absolute -bottom-2.5 -right-2.5 w-6 h-6 bg-white border-2 border-green-600 rounded-full cursor-nwse-resize flex items-center justify-center shadow-md z-20">
+                                        <i data-lucide="maximize-2" class="w-3 h-3 text-green-600"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-4 text-xs font-mono bg-slate-800 text-green-400 p-3 rounded-md flex-shrink-0">
+                                <div><span class="text-slate-400 block mb-1">MIN (Lon, Lat)</span><span id="scoord-min">0, 0</span></div>
+                                <div><span class="text-slate-400 block mb-1">MAX (Lon, Lat)</span><span id="scoord-max">0, 0</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+            <div id="stab-layers" class="story-tab-content hidden max-w-2xl mx-auto space-y-6">
+                <h2 class="text-xl font-bold border-b pb-2 mb-4">Layers & Filters</h2>
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Visible Layers</h3>
+                                <div class="space-y-3">
+                                    <label class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"><span class="text-sm font-medium">Rivers</span><input type="checkbox" id="slayer-river" class="accent-blue-600 w-5 h-5" onchange="updateStoryLayer('river', this.checked)"></label>
+                                    <label class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"><span class="text-sm font-medium">Stations</span><input type="checkbox" id="slayer-stations" class="accent-blue-600 w-5 h-5" onchange="updateStoryLayer('stations', this.checked)"></label>
+                                    <label class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"><span class="text-sm font-medium">Lakes</span><input type="checkbox" id="slayer-lakes" class="accent-blue-600 w-5 h-5" onchange="updateStoryLayer('lakes', this.checked)"></label>
+                                    <label class="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 cursor-pointer"><span class="text-sm font-medium">Rain Heatmap</span><input type="checkbox" id="slayer-rain" class="accent-blue-600 w-5 h-5" onchange="updateStoryLayer('rain', this.checked)"></label>
+                                </div>
+                            </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Opacity</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-xs font-medium text-gray-600 mb-1">Rain</label><input type="number" min="0" max="1" step="0.05" id="sop-rain" class="w-full px-2 py-1 border rounded" oninput="updateStoryOpacity('rain', this.value)"></div>
+                            <div><label class="block text-xs font-medium text-gray-600 mb-1">Hydrology</label><input type="number" min="0" max="1" step="0.05" id="sop-hydro" class="w-full px-2 py-1 border rounded" oninput="updateStoryOpacity('hydro', this.value)"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Rain Mode</h3>
+                        <select id="slayer-rainmode" class="w-full px-3 py-2 rounded bg-slate-800 border border-slate-700 text-gray-100" onchange="updateStoryLayer('rainMode', this.value)">
+                            <option value="none">Tắt</option>
+                            <option value="daily">Theo giờ</option>
+                            <option value="accumulated">Tích lũy</option>
+                        </select>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Filters</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 mb-1">Provinces (rain)</p>
+                                <div id="sfilter-provinces" class="border rounded p-2 max-h-40 overflow-y-auto space-y-1 bg-slate-50"></div>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 mb-1">Basins (rivers/stations/lakes)</p>
+                                <div id="sfilter-basins" class="border rounded p-2 max-h-40 overflow-y-auto space-y-1 bg-slate-50"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-semibold text-gray-500 uppercase mb-3">Labels</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-xs text-gray-600 mb-1">Stations</p>
+                                <div id="slabels-stations" class="border rounded p-2 max-h-40 overflow-y-auto space-y-1 bg-slate-50"></div>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-600 mb-1">Lakes</p>
+                                <div id="slabels-lakes" class="border rounded p-2 max-h-40 overflow-y-auto space-y-1 bg-slate-50"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                </section>
+
+                <aside id="story-preview-panel" class="w-full md:w-1/3 bg-slate-900 text-slate-300 flex flex-col border-l border-slate-700 absolute md:static inset-0 transform translate-x-full md:translate-x-0 transition-transform duration-300 z-30">
+                    <div class="flex justify-between items-center p-3 border-b border-slate-800 bg-slate-900">
+                        <div class="flex items-center gap-2 text-slate-200 text-sm font-semibold">
+                            <i data-lucide="eye" class="w-4 h-4"></i>
+                            <span>Preview</span>
+                        </div>
+                        <button onclick="toggleStoryPreview()" class="md:hidden text-slate-400 hover:text-white"><i data-lucide="x"></i></button>
+                    </div>
+
+                    <div id="view-visual" class="flex-1 relative bg-slate-800 overflow-hidden">
+                        <div id="preview-map" class="absolute inset-0"></div>
+                        <div class="absolute inset-0 pointer-events-none" id="preview-overlay">
+                            <div id="preview-mobile-zone"><span>Mobile Zone</span></div>
+                            <div id="preview-layer-badges" class="absolute top-3 left-3 flex flex-col gap-2"></div>
+                            <div id="preview-label-markers" class="absolute inset-0 pointer-events-none"></div>
+                        </div>
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent pointer-events-none"></div>
+                        <div class="absolute inset-0 p-6 flex items-end justify-center pointer-events-none">
+                            <div class="glass-panel w-full max-w-xl p-5 rounded-2xl border-l-4 border-blue-500 shadow-2xl backdrop-blur-xl relative overflow-hidden pointer-events-auto">
+                                <div class="absolute -right-4 -top-4 w-20 h-20 bg-blue-500 rounded-full blur-3xl opacity-20"></div>
+                                <h3 id="preview-title" class="text-lg font-bold text-white relative z-10 mb-2 leading-tight text-center">Title Here</h3>
+                                <p id="preview-body" class="text-sm text-gray-300 relative z-10 leading-relaxed text-center">Body text goes here...</p>
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/ol@9.1.0/dist/ol.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
 
@@ -340,8 +472,8 @@
 
         // Filter Range Definition
         const FILTER_RANGE = {
-            start: new Date("2025-11-14T01:00:00"),
-            end: new Date("2025-11-20T20:00:00")
+            start: new Date("2025-11-15T00:00:00"),
+            end: new Date("2025-11-21T23:00:00")
         };
         const COLORS = { blue: '#0ea5e9', green: '#22c55e', yellow: '#fbbf24', red: '#ef4444', purple: '#a855f7' };
         
@@ -364,6 +496,7 @@
             geoData: null,
             riverData: null,
             stationMeta: {},
+            dataReady: false,
             
             dates: [],
             wardIds: [], 
@@ -457,12 +590,19 @@
             filterResetBtn: document.getElementById('filter-reset'),
             pinnedList: document.getElementById('pinned-list'),
             mobilePinnedPreview: document.getElementById('mobile-pinned-preview'),
-            rainRadios: Array.from(document.querySelectorAll('input[name="rain-mode"]')),
+            rainRadios: [],
             timelinePlayPause: document.getElementById('timeline-play-pause'),
             playIcon: document.getElementById('play-icon'),
             pauseIcon: document.getElementById('pause-icon'),
             opacityRain: document.getElementById('opacity-rain'),
             opacityHydro: document.getElementById('opacity-hydro'),
+            // Story Creator
+            storyToggleBtn: document.getElementById('story-toggle-btn'),
+            storyModal: document.getElementById('story-modal'),
+            sFilterProvinces: document.getElementById('sfilter-provinces'),
+            sFilterBasins: document.getElementById('sfilter-basins'),
+            sLabelsStations: document.getElementById('slabels-stations'),
+            sLabelsLakes: document.getElementById('slabels-lakes'),
         };
 
         const defaultControls = (ol.control && typeof ol.control.defaults === 'function') 
@@ -642,6 +782,9 @@
         function normalizeSimple(text) {
             return (text || '').toString().trim().toLowerCase();
         }
+        function normalizeNoAccent(text) {
+            return (text || '').toString().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        }
         function applyOpacity(color, opacity) {
             const c = d3.color(color);
             if (!c) return color;
@@ -756,6 +899,11 @@
                         rainRes.status === 'fulfilled' ? rainRes.value : [],
                         waterRes.status === 'fulfilled' ? waterRes.value : []
                     );
+                    buildStoryFilterOptions();
+                    buildStoryLabelOptions();
+                    state.dataReady = true;
+                    renderStoryPreview();
+                    previewPending = false;
                 } else { 
                     throw new Error("GeoJSON missing"); 
                 }
@@ -1138,7 +1286,6 @@
             if (stationLayer?.getSource()) stationLayer.getSource().changed();
             if (lakeLayer?.getSource()) lakeLayer.getSource().changed();
             updateChartCursor();
-            renderPinnedCharts();
         }
 
         function recomputeRainThresholds() {
@@ -1176,7 +1323,7 @@
                 return;
             }
             
-            // Simple linear scale for position: 0-p50 -> 0-33%, p50-p90 -> 33-66%, p90-p99+ -> 66-100%
+            // Simple linear scale for position
             let percent = 0;
             if (value < rainThresholds.p50) percent = (value / rainThresholds.p50) * 33.3;
             else if (value < rainThresholds.p90) percent = 33.3 + ((value - rainThresholds.p50) / (rainThresholds.p90 - rainThresholds.p50)) * 33.3;
@@ -1227,19 +1374,6 @@
             DOM.legendModeLabel.textContent = state.mode === 'daily' ? 'Theo giờ' : 'Tích lũy';
         }
 
-        function refreshActivePopupMetadata() {
-            if (!popupOverlay.getPosition()) return;
-            if (!popupElement.dataset.type || !popupElement.dataset.coord) return;
-            const coord = JSON.parse(popupElement.dataset.coord);
-            if (popupElement.dataset.type === 'ward' && popupElement.dataset.id) {
-                openWardPopup(popupElement.dataset.id, coord);
-            } else if (popupElement.dataset.type === 'station' && popupElement.dataset.id) {
-                const feature = stationLayer?.getSource()?.getFeatures().find(f => f.get('stationId') === popupElement.dataset.id) 
-                    || lakeLayer?.getSource()?.getFeatures().find(f => f.get('stationId') === popupElement.dataset.id);
-                if (feature) openStationPopup(feature, coord);
-            }
-        }
-
         // =============================================================================
         // 7. CHART & POPUP LOGIC (D3)
         // =============================================================================
@@ -1284,10 +1418,8 @@
             d3.select("#chart-cursor-line").attr("x1", xEnd).attr("x2", xEnd);
             d3.select("#chart-selection-rect").attr("x", Math.min(xStart, xEnd)).attr("width", Math.max(2, xEnd - xStart));
             updatePopupCursorLines();
-            refreshActivePopupMetadata();
         }
 
-        // Shared Line Chart Renderer for Popups
         function renderLineChart(target, seriesList, options = {}) {
             const mobile = isMobileView();
             const baseWidth = options.width || 260;
@@ -1379,7 +1511,6 @@
                 svg.append("text").attr("transform", `translate(${-28},${innerH / 2}) rotate(-90)`).attr("fill", "#999").attr("font-size", 9).attr("text-anchor", "middle").text(options.yLabel);
             }
             
-            // Cursor Line
             if (Number.isFinite(options.cursorIndex) && domainDates.length) {
                 const boundedIndex = Math.min(Math.max(0, options.cursorIndex), domainDates.length - 1);
                 const cx = x(domainDates[boundedIndex]);
@@ -1388,41 +1519,6 @@
                     registerPopupCursor({ line: cursorLine, rect: selectionRect, scale: x, dates: domainDates });
                 }
             }
-
-            const tooltip = d3.select(target).append('div').attr('class', 'chart-tooltip');
-            const overlay = svg.append('rect')
-                .attr('width', innerW)
-                .attr('height', innerH)
-                .attr('fill', 'transparent')
-                .attr('pointer-events', 'all');
-
-            const showTooltip = (event) => {
-                if (!domainDates.length) { tooltip.classed('visible', false); return; }
-                const [mx] = d3.pointer(event, svg.node());
-                let closestIdx = -1;
-                let minDist = Infinity;
-                domainDates.forEach((date, idx) => {
-                    const px = x(date);
-                    if (px === undefined) return;
-                    const dist = Math.abs(mx - px);
-                    if (dist < minDist) { minDist = dist; closestIdx = idx; }
-                });
-                if (closestIdx === -1) { tooltip.classed('visible', false); return; }
-                const date = domainDates[closestIdx];
-                const lines = seriesList.map((series, idx) => {
-                    const val = seriesLookups[idx].get(date);
-                    if (!Number.isFinite(val)) return null;
-                    const label = series.label ? `${series.label}: ` : '';
-                    return `${label}${val.toFixed(2)}`;
-                }).filter(Boolean);
-                if (!lines.length) { tooltip.classed('visible', false); return; }
-                tooltip.html(lines.join('<br>')).classed('visible', true);
-                const [tx, ty] = d3.pointer(event, target);
-                tooltip.style('left', `${tx + 8}px`).style('top', `${ty - 24}px`);
-            };
-
-            overlay.on('mousemove', showTooltip);
-            overlay.on('mouseleave', () => tooltip.classed('visible', false));
         }
 
         function openWardPopup(id, coordinate) {
@@ -1491,11 +1587,11 @@
                 <div class="border-b border-gray-700 mb-2"></div>`;
             const chartDiv = document.createElement('div'); container.appendChild(chartDiv);
             const pinStationBtn = container.querySelector('[data-pin-station]');
-            if (pinStationBtn) pinStationBtn.addEventListener('click', () => addPinnedStationChart(sid));
+            if (pinStationBtn) pinStationBtn.addEventListener('click', () => {});
             const pinLakeStorageBtn = container.querySelector('[data-pin-lake-storage]');
-            if (pinLakeStorageBtn) pinLakeStorageBtn.addEventListener('click', () => addPinnedStationChart(sid, 'storage'));
+            if (pinLakeStorageBtn) pinLakeStorageBtn.addEventListener('click', () => {});
             const pinLakeFlowBtn = container.querySelector('[data-pin-lake-flow]');
-            if (pinLakeFlowBtn) pinLakeFlowBtn.addEventListener('click', () => addPinnedStationChart(sid, 'flow'));
+            if (pinLakeFlowBtn) pinLakeFlowBtn.addEventListener('click', () => {});
             
             const build = (fn) => {
                 const res = [];
@@ -1570,251 +1666,812 @@
             showPopup(container, coordinate);
         }
 
-        function buildWardChartConfig(id) {
-            if (!state.dates.length) return null;
-            const mapRef = state.mode === 'daily' ? state.dataMap : state.accumulatedMap;
-            const data = [];
-            for (let i = state.visibleStartIndex; i < state.dates.length; i++) {
-                const raw = mapRef[i]?.[id];
-                const val = Number(raw);
-                if (!Number.isFinite(val)) continue;
-                data.push({ date: state.dates[i], val });
+        // =============================================================================
+        // 8. STORY CREATOR LOGIC (NEW)
+        // =============================================================================
+        
+        const BLANK_STORY_SLIDE = {
+            id: 1,
+            title: "",
+            body: "",
+            timeline: { start: "", end: "", animate: false, snapToStart: true },
+            timelineMiniChart: true,
+            rainMode: "hourly",
+            layers: { rain: true, river: true, stations: true, lakes: true },
+            filters: { rivers: [], provinces: [] },
+            bounds: [{ extent: [108, 10, 110, 15] }],
+            labels: [],
+            opacity: { rain: 0.75, hydro: 0.9 }
+        };
+
+        let storySlides = [];
+        let activeSlideIndex = 0;
+        let isStoryModalInitialized = false;
+        let storyMap;
+        let previewMap;
+        let previewVectorLayer;
+        let previewOverlays = [];
+        let previewDynamicLayers = [];
+        let previewPending = false;
+        const DEFAULT_PREVIEW_EXTENT = ol.extent.boundingExtent([
+            ol.proj.fromLonLat([106, 9]),
+            ol.proj.fromLonLat([111, 16])
+        ]);
+        let currentStoryTab = 'general';
+        let previewLastExtent = null;
+
+        const getActiveSlide = () => storySlides[activeSlideIndex] || storySlides[0];
+
+        function toggleStoryModal() {
+            DOM.storyModal.classList.toggle('hidden');
+            if (!DOM.storyModal.classList.contains('hidden') && !isStoryModalInitialized) {
+                initStoryCreator();
+                isStoryModalInitialized = true;
+                if (!storySlides.length) addSlide(true);
             }
-            if (!data.length) return null;
-            const relStart = Math.max(0, state.startIndex - state.visibleStartIndex);
-            const relEnd = Math.max(0, state.endIndex - state.visibleStartIndex);
-            const label = state.mode === 'daily' ? 'Mưa' : 'Mưa tích lũy';
-            return {
-                series: [{ data, color: "#38bdf8", label }],
-                options: {
-                    height: 140,
-                    width: 250,
-                    cursorIndex: relEnd,
-                    selectionRange: { start: relStart, end: relEnd }
-                }
-            };
-        }
-
-        function buildWardPinnedCharts(id) {
-            const config = buildWardChartConfig(id);
-            return config ? [config] : [];
-        }
-
-        function buildStationSeries(sid, getter) {
-            const series = [];
-            for (let i = state.visibleStartIndex; i < state.dates.length; i++) {
-                const rec = state.waterLevelMap[i]?.[sid];
-                if (!rec) continue;
-                const val = getter(rec);
-                if (!Number.isFinite(val)) continue;
-                series.push({ date: state.dates[i], val });
+            if (!DOM.storyModal.classList.contains('hidden')) {
+                document.body.classList.add('story-modal-open');
+                lucide.createIcons(); // Refresh icons inside modal
+            } else {
+                document.body.classList.remove('story-modal-open');
             }
-            return series;
         }
 
-        function buildLakePinnedCharts(meta, sid, subtype = 'storage') {
-            const relStart = Math.max(0, state.startIndex - state.visibleStartIndex);
-            const relEnd = Math.max(0, state.endIndex - state.visibleStartIndex);
-            const charts = [];
-            if (subtype === 'storage') {
-                const storageSeries = buildStationSeries(sid, rec => {
-                    const ratio = Number(rec?.ratio);
-                    if (!Number.isFinite(ratio)) return null;
-                    const cap = Number(rec?.capacity) || Number(meta.designCapacity);
-                    if (Number.isFinite(cap)) return (ratio / 100) * cap;
-                    return ratio;
+        function toggleStoryPreview() {
+            const panel = document.getElementById('story-preview-panel');
+            panel.classList.toggle('translate-x-full');
+            setTimeout(() => {
+                initPreviewMap();
+                renderStoryPreview();
+                if (previewMap) previewMap.updateSize();
+            }, 60);
+        }
+
+        function updatePreviewMobileZone(extentArr, shouldShow) {
+            const zone = document.getElementById('preview-mobile-zone');
+            if (!zone || !previewMap) return;
+            if (!shouldShow || !extentArr || extentArr.length !== 4) {
+                zone.style.display = 'none';
+                return;
+            }
+            const [minLon, minLat, maxLon, maxLat] = extentArr.map(Number);
+            const bl = previewMap.getPixelFromCoordinate(ol.proj.fromLonLat([minLon, minLat]));
+            const tr = previewMap.getPixelFromCoordinate(ol.proj.fromLonLat([maxLon, maxLat]));
+            if (!bl || !tr) { zone.style.display = 'none'; return; }
+            const left = Math.min(bl[0], tr[0]);
+            const right = Math.max(bl[0], tr[0]);
+            const top = Math.min(bl[1], tr[1]);
+            const bottom = Math.max(bl[1], tr[1]);
+            const width = right - left;
+            const height = bottom - top;
+            if (width <= 0 || height <= 0) { zone.style.display = 'none'; return; }
+            zone.style.display = 'flex';
+            zone.style.left = `${left}px`;
+            zone.style.top = `${top}px`;
+            zone.style.width = `${width}px`;
+            zone.style.height = `${height}px`;
+        }
+
+                function buildStoryFilterOptions() {
+            const slide = getActiveSlide();
+            const provBox = DOM.sFilterProvinces;
+            const basinBox = DOM.sFilterBasins;
+            if (!provBox || !basinBox) return;
+            const selectedProv = new Set(slide?.filters?.provinces || []);
+            const selectedBasin = new Set(slide?.filters?.rivers || []);
+            provBox.innerHTML = '';
+            basinBox.innerHTML = '';
+            const provMap = new Map();
+            (state.geoData?.features || []).forEach(f => {
+                const p = f.properties["Tỉnh thành mới"];
+                if (p) provMap.set(p, p);
+            });
+            Array.from(provMap.values()).sort().forEach(p => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2 text-xs text-slate-700';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'accent-blue-600';
+                cb.value = p;
+                cb.checked = selectedProv.has(p);
+                cb.onchange = () => toggleFilterSelection('provinces', p, cb.checked);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(p.replace(/^tỉnh\\s+/i, '')));
+                provBox.appendChild(label);
+            });
+            const basins = new Set();
+            Object.values(state.stationMeta || {}).forEach(meta => { if (meta.river) basins.add(meta.river); });
+            (state.riverData?.features || []).forEach(f => {
+                const b = f.properties?.Basin;
+                if (b) basins.add(b);
+            });
+            Array.from(basins).sort().forEach(b => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2 text-xs text-slate-700';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'accent-blue-600';
+                cb.value = b;
+                cb.checked = selectedBasin.has(b);
+                cb.onchange = () => toggleFilterSelection('rivers', b, cb.checked);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(b));
+                basinBox.appendChild(label);
+            });
+        }
+
+        function toggleFilterSelection(key, value, checked) {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            slide.filters = slide.filters || { provinces: [], rivers: [] };
+            const arr = new Set(slide.filters[key] || []);
+            if (checked) arr.add(value); else arr.delete(value);
+            slide.filters[key] = Array.from(arr);
+            renderStoryJson();
+            buildStoryFilterOptions();
+            renderStoryPreview();
+        }
+
+        function buildStoryLabelOptions() {
+            const slide = getActiveSlide();
+            const stationList = DOM.sLabelsStations;
+            const lakeList = DOM.sLabelsLakes;
+            if (!stationList || !lakeList) return;
+            stationList.innerHTML = '';
+            lakeList.innerHTML = '';
+            if (!state.stationMeta || !Object.keys(state.stationMeta).length) return;
+            const selectedNames = new Set((slide?.labels || []).map(l => normalizeNoAccent(l.name)));
+            Object.values(state.stationMeta).forEach(meta => {
+                if (!meta.name) return;
+                const isLake = inferStationType(meta.type) === 'lake';
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-2 text-xs text-slate-700';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.className = 'accent-blue-600';
+                cb.checked = selectedNames.has(normalizeNoAccent(meta.name));
+                cb.onchange = () => toggleLabelSelection(meta, cb.checked);
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(meta.name));
+                if (isLake) lakeList.appendChild(label); else stationList.appendChild(label);
+            });
+        }
+
+        function toggleLabelSelection(meta, checked) {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            slide.labels = slide.labels || [];
+            const nameKey = normalizeNoAccent(meta.name);
+            slide.labels = slide.labels.filter(l => normalizeNoAccent(l.name) !== nameKey);
+            if (checked) {
+                slide.labels.push({
+                    name: meta.name,
+                    type: inferStationType(meta.type),
+                    color: inferStationType(meta.type) === 'lake' ? '#0ea5e9' : '#22c55e'
                 });
-                if (storageSeries.length) {
-                    const capVal = Number(meta.designCapacity);
-                    const annotations = [];
-                    if (Number.isFinite(capVal)) annotations.push({ value: capVal, color: COLORS.red });
-                    charts.push({
-                        series: [{ data: storageSeries, color: "#38bdf8", label: "Dung tích" }],
-                        options: {
-                            height: 100,
-                            width: 250,
-                            annotations,
-                            cursorIndex: relEnd,
-                            selectionRange: { start: relStart, end: relEnd },
-                            legend: [{ label: "Dung tích", color: "#38bdf8" }, ...(Number.isFinite(capVal) ? [{ label: "DT thiết kế (triệu m³)", color: COLORS.red }] : [])]
-                        }
-                    });
-                }
-            } else if (subtype === 'flow') {
-                const qInSeries = buildStationSeries(sid, rec => Number(rec?.qIn));
-                const qOutSeries = buildStationSeries(sid, rec => Number(rec?.qOut));
-                if (qInSeries.length || qOutSeries.length) {
-                    charts.push({
-                        series: [
-                            { data: qInSeries, color: "#22c55e", label: "Lượng đến" },
-                            { data: qOutSeries, color: "#ef4444", label: "Lượng xả" }
-                        ],
-                        options: {
-                            height: 100,
-                            width: 250,
-                            cursorIndex: relEnd,
-                            selectionRange: { start: relStart, end: relEnd },
-                            legend: [{ label: "Lượng đến", color: "#22c55e" }, { label: "Lượng xả", color: "#ef4444" }]
-                        }
-                    });
-                }
             }
-            return charts;
+            renderStoryJson();
+            buildStoryLabelOptions();
+            renderStoryPreview();
         }
 
-        function buildRiverPinnedCharts(meta, sid) {
-            const relStart = Math.max(0, state.startIndex - state.visibleStartIndex);
-            const relEnd = Math.max(0, state.endIndex - state.visibleStartIndex);
-            const levelSeries = buildStationSeries(sid, rec => Number(rec?.value));
-            if (!levelSeries.length) return [];
-            const options = {
-                height: 150,
-                width: 250,
-                cursorIndex: relEnd,
-                selectionRange: { start: relStart, end: relEnd },
-                legend: [{ label: "Mực nước", color: "#38bdf8" }],
-                yLabel: 'm'
-            };
-            const cur = state.waterLevelMap[state.endIndex]?.[sid];
-            const annotations = [];
-            if (Number.isFinite(cur?.bd1)) annotations.push({ value: cur.bd1, color: COLORS.green });
-            if (Number.isFinite(cur?.bd2)) annotations.push({ value: cur.bd2, color: COLORS.yellow });
-            if (Number.isFinite(cur?.bd3)) annotations.push({ value: cur.bd3, color: COLORS.red });
-            if (Number.isFinite(cur?.historic)) annotations.push({ value: cur.historic, color: COLORS.purple });
-            if (annotations.length) options.annotations = annotations;
-            return [{ series: [{ data: levelSeries, color: "#38bdf8", label: "Mực nước" }], options }];
+        function syncFilterUI(slide) {
+            buildStoryFilterOptions();
+            const provSet = new Set(slide.filters?.provinces || []);
+            const riverSet = new Set(slide.filters?.rivers || []);
+            DOM.sFilterProvinces?.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => cb.checked = provSet.has(cb.value));
+            DOM.sFilterBasins?.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => cb.checked = riverSet.has(cb.value));
         }
 
-        function buildStationPinnedCharts(sid, subtype = null) {
-            if (!state.dates.length) return [];
-            const meta = state.stationMeta[sid];
-            if (!meta) return [];
-            return inferStationType(meta.type) === 'lake'
-                ? buildLakePinnedCharts(meta, sid, subtype || 'storage')
-                : buildRiverPinnedCharts(meta, sid);
-        }
-
-        function addPinnedWardChart(id) {
-            const entry = {
-                key: `ward:${id}`,
-                type: 'ward',
-                id,
-                title: state.wardNames[id] || id,
-                subtitle: state.wardProvinces[id] || ''
-            };
-            upsertPinnedChart(entry);
-        }
-
-        function addPinnedStationChart(sid, variant = null) {
-            const meta = state.stationMeta[sid] || {};
-            const fragments = [];
-            if (meta.river) fragments.push(`Sông ${meta.river}`);
-            if (meta.provinceRaw) fragments.push(`Tỉnh ${meta.provinceRaw}`);
-            const isLake = inferStationType(meta.type) === 'lake';
-            const subtype = isLake ? (variant === 'flow' ? 'flow' : 'storage') : 'river';
-            const titleSuffix = isLake ? (subtype === 'flow' ? ' - Lưu lượng' : ' - Dung tích') : '';
-            const entry = {
-                key: `station:${sid}:${subtype}`,
-                type: isLake ? 'lake' : 'station',
-                subtype,
-                id: sid,
-                title: (meta.name || sid) + titleSuffix,
-                subtitle: fragments.join(' • ')
-            };
-            upsertPinnedChart(entry);
-        }
-
-        function upsertPinnedChart(entry) {
-            const existingIdx = pinnedCharts.findIndex(item => item.key === entry.key);
-            if (existingIdx !== -1) pinnedCharts.splice(existingIdx, 1);
-            pinnedCharts.push(entry);
-            if (pinnedCharts.length > 2) pinnedCharts.shift();
-            renderPinnedCharts();
-        }
-
-        function removePinnedChart(key) {
-            pinnedCharts = pinnedCharts.filter(item => item.key !== key);
-            renderPinnedCharts();
-        }
-
-        function renderMobilePinnedPreview() {
-            if (!DOM.mobilePinnedPreview) return;
-            const preview = DOM.mobilePinnedPreview;
-            preview.innerHTML = '';
-            if (!isMobileView() || !pinnedCharts.length) {
-                preview.style.display = 'none';
-                return;
-            }
-            const subset = pinnedCharts.slice(-2);
-            preview.style.display = 'flex';
-            subset.forEach(entry => {
-                const card = document.createElement('div');
-                card.className = 'preview-card';
-                const title = document.createElement('h4');
-                title.textContent = entry.title;
-                card.appendChild(title);
-                const chartWrap = document.createElement('div');
-                chartWrap.className = 'preview-chart';
-                card.appendChild(chartWrap);
-                preview.appendChild(card);
-                const wrapWidth = Math.max(chartWrap.clientWidth || card.clientWidth || 0, 1);
-                const chartWidth = Math.min(wrapWidth, 240);
-                const configs = entry.type === 'ward' ? buildWardPinnedCharts(entry.id) : buildStationPinnedCharts(entry.id, entry.subtype);
-                if (configs.length) {
-                    const cfg = configs[0];
-                    renderLineChart(chartWrap, cfg.series, { ...cfg.options, width: chartWidth, height: 60, bottom: 6 });
-                } else {
-                    chartWrap.textContent = 'Không có dữ liệu';
-                }
+        function syncLabelUI(slide) {
+            buildStoryLabelOptions();
+            const labelSet = new Set((slide.labels || []).map(l => normalizeNoAccent(l.name)));
+            DOM.sLabelsStations?.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => {
+                const name = cb.parentElement?.textContent?.trim() || '';
+                cb.checked = labelSet.has(normalizeNoAccent(name));
+            });
+            DOM.sLabelsLakes?.querySelectorAll('input[type=\"checkbox\"]').forEach(cb => {
+                const name = cb.parentElement?.textContent?.trim() || '';
+                cb.checked = labelSet.has(normalizeNoAccent(name));
             });
         }
 
-        function renderPinnedCharts() {
-            if (!DOM.pinnedList) return;
-            DOM.pinnedList.innerHTML = '';
-            if (!pinnedCharts.length) {
-                renderMobilePinnedPreview();
-                return;
-            }
-            pinnedCharts.forEach(entry => {
-                const card = document.createElement('div');
-                card.className = "glass-panel px-3 py-3 rounded-lg shadow-lg flex flex-col gap-2";
-                const header = document.createElement('div');
-                header.className = "flex items-start justify-between gap-2";
-                const info = document.createElement('div');
-                info.innerHTML = `<div class="text-sm text-white font-semibold">${entry.title}</div>${entry.subtitle ? `<div class="text-[11px] text-gray-400">${entry.subtitle}</div>` : ''}`;
-                const closeBtn = document.createElement('button');
-                closeBtn.className = "text-gray-400 hover:text-white text-lg leading-none";
-                closeBtn.innerHTML = '&times;';
-                closeBtn.addEventListener('click', () => removePinnedChart(entry.key));
-                header.appendChild(info);
-                header.appendChild(closeBtn);
-                const chartsWrap = document.createElement('div');
-                chartsWrap.className = "flex flex-col gap-2";
-                const configs = entry.type === 'ward' ? buildWardPinnedCharts(entry.id) : buildStationPinnedCharts(entry.id, entry.subtype);
-                if (!configs.length) {
-                    chartsWrap.textContent = 'Không có dữ liệu';
-                } else {
-                    configs.forEach(cfg => {
-                        const chartDiv = document.createElement('div');
-                        chartsWrap.appendChild(chartDiv);
-                        const adjustedOpts = { 
-                            ...cfg.options, 
-                            height: isMobileView() ? 60 : 110, 
-                            width: (DOM.pinnedPanel?.clientWidth || cfg.options.width || 220) - 24 
-                        };
-                        renderLineChart(chartDiv, cfg.series, adjustedOpts);
-                    });
-                }
-                card.appendChild(header);
-                card.appendChild(chartsWrap);
-                DOM.pinnedList.appendChild(card);
+        function initStoryCreator() {
+            populateStoryForm();
+            renderStoryJson();
+            initStoryMapEditor();
+            renderSlideChips();
+            renderStoryPreview(); // Ensure preview visible by default
+        }
+
+        function switchStoryTab(tabId) {
+            currentStoryTab = tabId;
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                const isActive = btn.dataset.tab === tabId;
+                btn.classList.toggle('active', isActive);
+                btn.classList.toggle('text-slate-900', isActive);
+                btn.classList.toggle('text-slate-400', !isActive);
             });
-            renderMobilePinnedPreview();
+            document.querySelectorAll('.story-tab-content').forEach(content => {
+                content.id === `stab-${tabId}` ? content.classList.remove('hidden') : content.classList.add('hidden');
+            });
+            // Resize map if tab switches
+            if (tabId === 'map' && storyMap) {
+                setTimeout(() => storyMap.updateSize(), 100);
+            }
+            renderStoryPreview();
+        }
+
+        function populateStoryForm() {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            document.getElementById('sinp-id').value = slide.id || '';
+            document.getElementById('sinp-title').value = slide.title || '';
+            document.getElementById('sinp-body').value = slide.body || '';
+            
+            document.getElementById('sinp-time-start').value = slide.timeline.start || '';
+            document.getElementById('sinp-time-end').value = slide.timeline.end || '';
+            document.getElementById('sinp-animate').checked = !!slide.timeline.animate;
+            document.getElementById('sinp-snap').checked = !!slide.timeline.snapToStart;
+            document.getElementById('sinp-miniChart').checked = !!slide.timelineMiniChart;
+
+            document.getElementById('slayer-river').checked = !!slide.layers.river;
+            document.getElementById('slayer-stations').checked = !!slide.layers.stations;
+            document.getElementById('slayer-lakes').checked = !!slide.layers.lakes;
+            document.getElementById('slayer-rain').checked = !!slide.layers.rain;
+            document.getElementById('slayer-rainmode').value = slide.rainMode || 'accumulated';
+
+            document.getElementById('sop-rain').value = slide.opacity.rain ?? 0.75;
+            document.getElementById('sop-hydro').value = slide.opacity.hydro ?? 0.9;
+
+            syncFilterUI(slide);
+            syncLabelUI(slide);
+        }
+
+        function renderStoryJson() {
+            // JSON editor removed; keep preview in sync when state changes
+            renderStoryPreview();
+        }
+
+        function renderSlideChips() {
+            const container = document.getElementById('slide-chips');
+            if (!container) return;
+            container.innerHTML = '';
+            storySlides.forEach((s, idx) => {
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1 rounded-full text-xs font-semibold border ${idx === activeSlideIndex ? 'bg-blue-600 text-white border-blue-700' : 'bg-slate-200 text-slate-700 border-slate-300 hover:bg-slate-300'}`;
+                btn.innerText = s.title || `Slide ${s.id || idx + 1}`;
+                btn.onclick = () => { 
+                    activeSlideIndex = idx; 
+                    previewLastExtent = null; 
+                    populateStoryForm(); 
+                    renderStoryJson(); 
+                    renderSlideChips(); 
+                    renderStoryPreview(); 
+                };
+                container.appendChild(btn);
+            });
+        }
+
+        function addSlide(isInitial = false) {
+            const maxId = storySlides.reduce((m, s) => Math.max(m, Number(s.id) || 0), 0);
+            const clone = JSON.parse(JSON.stringify(BLANK_STORY_SLIDE));
+            clone.id = maxId + 1;
+            if (!isInitial) clone.title = `Slide ${clone.id}`;
+            storySlides.push(clone);
+            activeSlideIndex = storySlides.length - 1;
+            previewLastExtent = null;
+            populateStoryForm();
+            renderStoryJson();
+            renderSlideChips();
+            renderStoryPreview();
+        }
+
+        function deleteSlide() {
+            if (storySlides.length <= 1) return;
+            storySlides.splice(activeSlideIndex, 1);
+            activeSlideIndex = Math.max(0, activeSlideIndex - 1);
+            previewLastExtent = null;
+            populateStoryForm();
+            renderStoryJson();
+            renderSlideChips();
+            renderStoryPreview();
+        }
+
+        function renderStoryPreview() {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            initPreviewMap();
+            if (!state.dataReady) { previewPending = true; return; }
+            document.getElementById('preview-title').innerText = slide.title;
+            document.getElementById('preview-body').innerText = slide.body;
+            applyPreviewMapState(slide, { showBounds: currentStoryTab === 'map' });
+        }
+
+        // Legacy no-op stubs for removed pinned chart functionality
+        function addPinnedStationChart() { return; }
+        function renderPinnedCharts() { return; }
+
+        function initPreviewMap() {
+            if (previewMap) { setTimeout(() => previewMap.updateSize(), 100); return; }
+            const target = document.getElementById('preview-map');
+            if (!target) return;
+            previewMap = new ol.Map({
+                target: 'preview-map',
+                layers: [
+                    new ol.layer.Tile({
+                        source: new ol.source.XYZ({
+                            url: 'https://mt0.google.com/vt/lyrs=s&hl=vi&x={x}&y={y}&z={z}'
+                        })
+                    })
+                ],
+                view: new ol.View({
+                    center: ol.proj.fromLonLat([108.5, 12.8]),
+                    zoom: 7
+                }),
+                controls: []
+            });
+            previewVectorLayer = new ol.layer.Vector({
+                source: new ol.source.Vector(),
+                style: new ol.style.Style({
+                    stroke: new ol.style.Stroke({ color: '#22c55e', width: 2 }),
+                    fill: new ol.style.Fill({ color: 'rgba(34,197,94,0.08)' })
+                })
+            });
+            previewMap.addLayer(previewVectorLayer);
+        }
+
+        function clearPreviewOverlays() {
+            if (!previewMap) return;
+            previewOverlays.forEach(ov => previewMap.removeOverlay(ov));
+            previewOverlays = [];
+        }
+
+        function clearPreviewLayers() {
+            if (!previewMap) return;
+            previewDynamicLayers.forEach(layer => previewMap.removeLayer(layer));
+            previewDynamicLayers = [];
+        }
+
+        function applyPreviewMapState(slide, options = {}) {
+            const showBounds = options.showBounds !== false;
+            initPreviewMap();
+            if (!previewMap) return;
+            if (!state.dataReady) { previewPending = true; return; }
+            clearPreviewLayers();
+            let targetExtent = null;
+            const extentArr = slide.bounds?.[0]?.extent || null;
+            const vectorSrc = previewVectorLayer?.getSource();
+
+            // Bounds preview only when requested (map tab)
+            if (showBounds && extentArr && extentArr.length === 4) {
+                const [minLon, minLat, maxLon, maxLat] = extentArr.map(Number);
+                const bl = ol.proj.fromLonLat([minLon, minLat]);
+                const tr = ol.proj.fromLonLat([maxLon, maxLat]);
+                targetExtent = ol.extent.boundingExtent([bl, tr]);
+                if (vectorSrc) {
+                    vectorSrc.clear();
+                    const poly = new ol.geom.Polygon([[
+                        [minLon, minLat], [minLon, maxLat], [maxLon, maxLat], [maxLon, minLat], [minLon, minLat]
+                    ]].map(ring => ring.map(coord => ol.proj.fromLonLat(coord))));
+                    vectorSrc.addFeature(new ol.Feature({ geometry: poly }));
+                }
+            } else if (vectorSrc) {
+                vectorSrc.clear();
+            }
+            updatePreviewMobileZone(extentArr, showBounds && !!targetExtent);
+
+            // If no explicit bounds, use last extent or data-driven fallback
+            if (!targetExtent && previewLastExtent) targetExtent = previewLastExtent;
+            if (!targetExtent && state.geoData && state.geoData.features?.length) {
+                const feats = new ol.format.GeoJSON().readFeatures({ type: 'FeatureCollection', features: state.geoData.features }, { featureProjection: 'EPSG:3857' });
+                const src = new ol.source.Vector({ features: feats });
+                targetExtent = src.getExtent();
+            }
+            if (!targetExtent || ol.extent.isEmpty(targetExtent)) {
+                targetExtent = DEFAULT_PREVIEW_EXTENT;
+            }
+            if (targetExtent && !ol.extent.isEmpty(targetExtent)) {
+                previewMap.getView().fit(targetExtent, { padding: [40, 40, 40, 40], duration: 300 });
+                previewLastExtent = targetExtent;
+            }
+            // Reposition mobile zone after fit animation settles
+            if (showBounds && extentArr && extentArr.length === 4) {
+                setTimeout(() => updatePreviewMobileZone(extentArr, true), 150);
+            }
+
+            // Filters
+            const riverFilter = new Set((slide.filters?.rivers || []).map(normalizeSimple));
+            const provinceFilter = new Set((slide.filters?.provinces || []).map(normalizeProvince));
+            const allowRiver = (name) => {
+                if (!riverFilter.size) return true;
+                const n = normalizeSimple(name);
+                return Array.from(riverFilter).some(r => r === n);
+            };
+            const allowProvince = (name) => {
+                if (!provinceFilter.size) return true;
+                return provinceFilter.has(normalizeProvince(name));
+            };
+            const localMode = (slide.rainMode === 'hourly' || slide.rainMode === 'daily') ? 'daily'
+                : (slide.rainMode === 'accumulated' || slide.rainMode === 'cumulative') ? 'accumulated'
+                : state.mode;
+            const startIdx = (() => {
+                const target = slide.timeline?.start;
+                if (!target) return 0;
+                const t = new Date(target).getTime();
+                if (Number.isNaN(t)) return 0;
+                let best = 0, diff = Infinity;
+                state.dates.forEach((d, i) => {
+                    const di = new Date(d).getTime();
+                    const delta = Math.abs(di - t);
+                    if (delta < diff) { diff = delta; best = i; }
+                });
+                return best;
+            })();
+
+            // Rivers
+            if (slide.layers?.river && state.riverData) {
+                const feats = new ol.format.GeoJSON().readFeatures(state.riverData, { featureProjection: 'EPSG:3857' })
+                    .filter(f => allowRiver(f.get('Basin') || f.get('name') || ''));
+                const riverLayer = new ol.layer.Vector({
+                    source: new ol.source.Vector({ features: feats }),
+                    style: new ol.style.Style({
+                        stroke: new ol.style.Stroke({ color: 'rgba(96,165,250,0.8)', width: 1.5 })
+                    }),
+                    zIndex: 10
+                });
+                previewMap.addLayer(riverLayer);
+                previewDynamicLayers.push(riverLayer);
+            }
+
+            // Stations & Lakes
+            const stationSource = new ol.source.Vector();
+            const lakeSource = new ol.source.Vector();
+            const waterAt = state.waterLevelMap[startIdx] || {};
+            const colors = slide.opacity || {};
+            const hydroOpacity = Number(colors.hydro ?? 0.9);
+            Object.values(state.stationMeta).forEach(meta => {
+                if (!Number.isFinite(meta.lat) || !Number.isFinite(meta.lon)) return;
+                if (!allowRiver(meta.river || meta.riverNorm || '')) return;
+                if (!allowProvince(meta.provinceRaw || meta.province || '')) return;
+                const record = waterAt[meta.station_id];
+                if (!record) return;
+                const isLake = inferStationType(meta.type) === 'lake';
+                const point = new ol.Feature({
+                    geometry: new ol.geom.Point(ol.proj.fromLonLat([meta.lon, meta.lat])),
+                    name: meta.name
+                });
+                if (isLake) {
+                    const status = getLakeStatus(record);
+                    const radius = computeLakePixelRadius(record.capacity, record.ratio);
+                    point.setStyle(new ol.style.Style({
+                        image: new ol.style.RegularShape({
+                            points: 3,
+                            radius,
+                            rotation: Math.PI,
+                            fill: new ol.style.Fill({ color: applyOpacity(status.color, hydroOpacity) }),
+                            stroke: new ol.style.Stroke({ color: applyOpacity('#fff', hydroOpacity), width: 1 })
+                        })
+                    }));
+                    lakeSource.addFeature(point);
+                } else {
+                    const status = getRiverStatus(record);
+                    point.setStyle(new ol.style.Style({
+                        image: new ol.style.Circle({
+                            radius: Math.max(4, 3 + (record.warningValue || 0) * 2),
+                            fill: new ol.style.Fill({ color: applyOpacity(status.color, hydroOpacity) }),
+                            stroke: new ol.style.Stroke({ color: applyOpacity(status.color, hydroOpacity), width: 1 })
+                        })
+                    }));
+                    stationSource.addFeature(point);
+                }
+            });
+            if (slide.layers?.stations && stationSource.getFeatures().length) {
+                const layer = new ol.layer.Vector({ source: stationSource, zIndex: 20 });
+                previewMap.addLayer(layer); previewDynamicLayers.push(layer);
+            }
+            if (slide.layers?.lakes && lakeSource.getFeatures().length) {
+                const layer = new ol.layer.Vector({ source: lakeSource, zIndex: 20 });
+                previewMap.addLayer(layer); previewDynamicLayers.push(layer);
+            }
+
+            // Fit fallback if no explicit bounds
+            if (!targetExtent) {
+                const allExtents = [];
+                if (previewVectorLayer?.getSource()?.getFeatures().length) allExtents.push(previewVectorLayer.getSource().getExtent());
+                previewDynamicLayers.forEach(l => {
+                    const ext = l.getSource()?.getExtent();
+                    if (ext && !ol.extent.isEmpty(ext)) allExtents.push(ext);
+                });
+                if (allExtents.length) {
+                    const combined = allExtents.reduce((acc, ext) => ol.extent.extend(acc, ext), ol.extent.createEmpty());
+                    if (!ol.extent.isEmpty(combined)) previewMap.getView().fit(combined, { padding: [40, 40, 40, 40], duration: 300 });
+                }
+            }
+
+            // Layers badges
+            const badgeBox = document.getElementById('preview-layer-badges');
+            if (badgeBox) {
+                badgeBox.innerHTML = '';
+                const layers = slide.layers || {};
+                const entries = [
+                    { key: 'rain', label: 'Mưa' },
+                    { key: 'river', label: 'Sông' },
+                    { key: 'stations', label: 'Trạm' },
+                    { key: 'lakes', label: 'Hồ' }
+                ];
+                entries.forEach(entry => {
+                    const on = layers[entry.key];
+                    const pill = document.createElement('div');
+                    pill.className = `px-2 py-1 rounded text-xs font-semibold border ${on ? 'bg-emerald-500/20 text-emerald-200 border-emerald-400/60' : 'bg-slate-700/60 text-slate-300 border-slate-500/70'}`;
+                    pill.innerText = `${entry.label}: ${on ? 'On' : 'Off'}`;
+                    badgeBox.appendChild(pill);
+                });
+            }
+
+            // Labels overlays
+            clearPreviewOverlays();
+            const labelBox = document.getElementById('preview-label-markers');
+            if (labelBox) labelBox.innerHTML = '';
+            if (slide.labels && slide.labels.length && extentArr && extentArr.length === 4) {
+                slide.labels.forEach((lb, idx) => {
+                    let coord = null;
+                    const targetMeta = Object.values(state.stationMeta || {}).find(m => normalizeNoAccent(m.name).includes(normalizeNoAccent(lb.name)));
+                    if (targetMeta && Number.isFinite(targetMeta.lon) && Number.isFinite(targetMeta.lat)) {
+                        coord = ol.proj.fromLonLat([targetMeta.lon, targetMeta.lat]);
+                    }
+                    if (!coord && extentArr?.length === 4) {
+                        const [minLon, minLat, maxLon, maxLat] = extentArr.map(Number);
+                        const fallbackPositions = [
+                            [minLon, maxLat],
+                            [maxLon, maxLat],
+                            [minLon, minLat],
+                            [maxLon, minLat],
+                            [(minLon + maxLon) / 2, (minLat + maxLat) / 2]
+                        ];
+                        coord = ol.proj.fromLonLat(fallbackPositions[idx % fallbackPositions.length]);
+                    }
+                    if (!coord) return;
+                    const el = document.createElement('div');
+                    el.className = 'text-xs font-semibold px-2 py-1 rounded-full shadow-lg';
+                    el.style.color = '#fff';
+                    el.style.background = lb.color || '#0ea5e9';
+                    el.innerText = lb.name;
+                    const ov = new ol.Overlay({ element: el, positioning: 'bottom-center', stopEvent: false, offset: [0, -6] });
+                    previewMap.addOverlay(ov);
+                    ov.setPosition(coord);
+                    previewOverlays.push(ov);
+                });
+            }
+        }
+
+        function copyStoryJson() {
+            navigator.clipboard.writeText(JSON.stringify(storySlides, null, 2));
+            const btnText = document.getElementById('copy-text');
+            const originalText = btnText.innerText;
+            btnText.innerText = "Copied!";
+            setTimeout(() => btnText.innerText = originalText, 2000);
+        }
+
+        function triggerStoryJsonUpload() {
+            const input = document.getElementById('story-json-file');
+            if (!input) return;
+            input.value = '';
+            input.click();
+        }
+
+        function handleStoryJsonFile(event) {
+            const file = event?.target?.files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const parsed = JSON.parse(e.target?.result || '[]');
+                    if (!Array.isArray(parsed)) throw new Error("JSON must be an array of slides");
+                    storySlides = parsed;
+                    activeSlideIndex = 0;
+                    previewLastExtent = null;
+                    populateStoryForm();
+                    renderStoryJson();
+                    renderSlideChips();
+                    renderStoryPreview();
+                } catch (err) {
+                    alert("Invalid JSON: " + err.message);
+                } finally {
+                    event.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Global handlers for Story updates (attached to window for inline onclick)
+        window.updateStoryField = (field, value, type) => {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            if (type === 'number') value = Number(value);
+            slide[field] = value;
+            renderStoryJson();
+            renderSlideChips();
+            renderStoryPreview();
+        };
+        window.updateStoryTimeline = (field, value) => {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            slide.timeline[field] = value;
+            renderStoryJson();
+        };
+        window.updateStoryLayer = (layer, checked) => {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            if (layer === 'rainMode') {
+                slide.rainMode = checked;
+            } else {
+                slide.layers[layer] = checked;
+            }
+            renderStoryJson();
+            renderStoryPreview();
+        };
+        window.updateStoryOpacity = (type, value) => {
+            const slide = getActiveSlide();
+            if (!slide) return;
+            const num = Number(value);
+            slide.opacity[type] = num;
+            renderStoryJson();
+            renderStoryPreview();
+        };
+
+        // --- Interactive Map Bounds Editor ---
+        function initStoryMapEditor() {
+            const container = document.getElementById('smap-wrapper');
+            const box = document.getElementById('sbounds-box');
+            const handle = document.getElementById('sresize-handle');
+            const ratioCheckbox = document.getElementById('slock-ratio');
+
+            // Initialize Map
+            storyMap = new ol.Map({
+                target: 'smap-target',
+                layers: [
+                    new ol.layer.Tile({
+                        source: new ol.source.XYZ({ url: 'https://mt0.google.com/vt/lyrs=s&hl=vi&x={x}&y={y}&z={z}' })
+                    })
+                ],
+                view: new ol.View({
+                    center: ol.proj.fromLonLat([109.0, 13.0]), // Approx Center
+                    zoom: 8
+                }),
+                controls: [] // Minimal controls
+            });
+
+            let isDragging = false, isResizing = false;
+            let startX, startY, startLeft, startTop, startW, startH;
+
+            // Helper to sync state to UI coords
+            function updateDataFromBox() {
+                if (!storyMap) return;
+                const mapRect = container.getBoundingClientRect();
+                const boxRect = box.getBoundingClientRect();
+                
+                // Calculate TopLeft and BottomRight pixels relative to map viewport
+                const tlPixel = [
+                    boxRect.left - mapRect.left,
+                    boxRect.top - mapRect.top
+                ];
+                const brPixel = [
+                    boxRect.right - mapRect.left,
+                    boxRect.bottom - mapRect.top
+                ];
+
+                const tlCoord = storyMap.getCoordinateFromPixel(tlPixel);
+                const brCoord = storyMap.getCoordinateFromPixel(brPixel);
+
+                if (!tlCoord || !brCoord) return;
+
+                const [minLon, maxLat] = ol.proj.toLonLat(tlCoord);
+                const [maxLon, minLat] = ol.proj.toLonLat(brCoord);
+
+                const slide = getActiveSlide();
+                if (!slide.bounds || !slide.bounds.length) slide.bounds = [{ extent: [minLon, minLat, maxLon, maxLat] }];
+                else slide.bounds[0].extent = [
+                    Number(minLon.toFixed(3)), Number(minLat.toFixed(3)),
+                    Number(maxLon.toFixed(3)), Number(maxLat.toFixed(3))
+                ];
+                updateCoordDisplay(minLon, minLat, maxLon, maxLat);
+                renderStoryJson();
+            }
+
+            function updateCoordDisplay(minLon, minLat, maxLon, maxLat) {
+                document.getElementById('scoord-min').innerText = `${minLon.toFixed(3)}, ${minLat.toFixed(3)}`;
+                document.getElementById('scoord-max').innerText = `${maxLon.toFixed(3)}, ${maxLat.toFixed(3)}`;
+                renderStoryJson();
+                renderStoryPreview();
+            }
+
+            // Sync on Map Move/Zoom
+            storyMap.on('moveend', updateDataFromBox);
+            storyMap.on('change:size', updateDataFromBox);
+
+            // DOM Interaction Handlers
+            box.addEventListener('mousedown', (e) => {
+                if(e.target === handle || handle.contains(e.target)) return;
+                e.preventDefault(); isDragging = true;
+                box.style.cursor = 'grabbing';
+                
+                const rect = box.getBoundingClientRect();
+                const parentRect = container.getBoundingClientRect();
+                
+                startX = e.clientX; startY = e.clientY;
+                startLeft = rect.left - parentRect.left; startTop = rect.top - parentRect.top;
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            handle.addEventListener('mousedown', (e) => {
+                e.preventDefault(); e.stopPropagation(); isResizing = true;
+                
+                const rect = box.getBoundingClientRect();
+                startX = e.clientX; startY = e.clientY;
+                startW = rect.width; startH = rect.height;
+                
+                document.addEventListener('mousemove', onMouseMove);
+                document.addEventListener('mouseup', onMouseUp);
+            });
+
+            function onMouseMove(e) {
+                const parentRect = container.getBoundingClientRect();
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+
+                if (isDragging) {
+                    let newLeft = startLeft + dx;
+                    let newTop = startTop + dy;
+                    const w = box.offsetWidth; const h = box.offsetHeight;
+                    
+                    if (newLeft < 0) newLeft = 0; 
+                    if (newTop < 0) newTop = 0;
+                    if (newLeft + w > parentRect.width) newLeft = parentRect.width - w;
+                    if (newTop + h > parentRect.height) newTop = parentRect.height - h;
+                    
+                    box.style.left = `${newLeft}px`;
+                    box.style.top = `${newTop}px`;
+                } else if (isResizing) {
+                    let newW = startW + dx;
+                    let newH = startH + dy;
+                    
+                    if (ratioCheckbox.checked) {
+                        const TARGET_RATIO = 16/9; // PC Ratio
+                        if (Math.abs(dx) > Math.abs(dy)) newH = newW / TARGET_RATIO;
+                        else newW = newH * TARGET_RATIO;
+                    }
+                    
+                    if (newW < 40) newW = 40; if (newH < 40) newH = 40;
+                    
+                    const currentLeft = parseFloat(box.style.left) || 0;
+                    const currentTop = parseFloat(box.style.top) || 0;
+                    
+                    if (currentLeft + newW > parentRect.width) newW = parentRect.width - currentLeft;
+                    if (currentTop + newH > parentRect.height) newH = parentRect.height - currentTop;
+                    
+                    if (ratioCheckbox.checked && (currentLeft + newW >= parentRect.width)) newH = newW / (16/9);
+                    
+                    box.style.width = `${newW}px`;
+                    box.style.height = `${newH}px`;
+                }
+                updateDataFromBox();
+            }
+
+            function onMouseUp() {
+                isDragging = false; isResizing = false; box.style.cursor = 'move';
+                document.removeEventListener('mousemove', onMouseMove);
+                document.removeEventListener('mouseup', onMouseUp);
+            }
+
+            // Initial Update
+            setTimeout(updateDataFromBox, 200); // Delay to ensure map ready
         }
 
         // =============================================================================
-        // 8. UI EVENT HANDLERS
+        // 9. UI EVENT HANDLERS
         // =============================================================================
         function generateTicks() {
             const container = document.getElementById('timeline-ticks');
@@ -1902,7 +2559,6 @@
 
         window.addEventListener('resize', () => { 
             if(state.timelineStats.length) initTimelineChart();
-            renderMobilePinnedPreview();
         });
         
         DOM.layerToggleBtn.addEventListener('click', () => DOM.layerPanel.classList.toggle('hidden'));
@@ -1926,6 +2582,8 @@
             initGeoLayer(); initStationLayer(); applyLayerVisibility(); updateView();
         });
 
+        DOM.storyToggleBtn.addEventListener('click', toggleStoryModal);
+
         DOM.chkStations.addEventListener('change', (e) => { layerVisibility.stations = e.target.checked; applyLayerVisibility(); });
         DOM.chkLakes.addEventListener('change', (e) => { layerVisibility.lakes = e.target.checked; applyLayerVisibility(); });
         DOM.chkRivers.addEventListener('change', (e) => { layerVisibility.river = e.target.checked; applyLayerVisibility(); });
@@ -1936,22 +2594,12 @@
         bindOpacity(DOM.opacityRain, 'rain');
         bindOpacity(DOM.opacityHydro, 'hydro');
         
-        DOM.rainRadios.forEach(r => r.addEventListener('change', (e) => {
-            const val = e.target.value;
-            layerVisibility.rain = (val !== 'none');
-            state.mode = (val === 'none') ? state.mode : val;
-            
-            if (state.mode === 'daily') { DOM.sliderStart.style.opacity = 0; DOM.rangeFill.style.opacity = 0; }
-            else { DOM.sliderStart.style.opacity = 1; DOM.rangeFill.style.opacity = 1; }
-            
-            stopTimelineAnimation();
-            applyLayerVisibility();
-            recomputeRainThresholds();
-            requestViewUpdate();
-        }));
+        // Rain mode selection now comes from story slides; UI radio no longer needed
 
         // Start Application
         initData();
+        // Init icons for dashboard (not modal yet)
+        if(window.lucide) lucide.createIcons();
     </script>
 </body>
 </html>
